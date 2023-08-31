@@ -42,8 +42,6 @@ pub fn init(level: Level, console: bool, log_path: Option<PathBuf>) -> Vec<Worke
         None
     };
     let subscriber = Registry::default().with(layer1).with(layer2);
-
     tracing::subscriber::set_global_default(subscriber).expect("unable to set global subscriber");
     guards
-
 }
