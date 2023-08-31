@@ -85,9 +85,9 @@ fn create(conn: &Connection) -> Result<String> {
 }
 
 
-// Updates the database with new SQL files
-// Useful to migrate existing databases
-fn update(conn: &Connection) -> Result<(i8, String)> {
+// Migrates the existing database with new SQL files
+// This can be new tables, views, columns, as well as new data
+fn migrate(conn: &Connection) -> Result<(i8, String)> {
     let my_uuid = get_uuid(&conn)?;
     let version = get_version(&conn)?;
     for file in UpdatesAsset::iter() {
@@ -107,6 +107,8 @@ fn update(conn: &Connection) -> Result<(i8, String)> {
 }
 
 pub fn init(path: &str) -> Result<Connection> {
+    // Open with no file creation to distinguish between
+    // dtabase creation and migration
     let result = Connection::open_with_flags(
         path,
           OpenFlags::SQLITE_OPEN_READ_WRITE
@@ -114,8 +116,8 @@ pub fn init(path: &str) -> Result<Connection> {
         | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     );
     let result = match result {
-        Ok(conn) => {  // Database already exists, check for schema updates
-            let (version, my_uuid) = update(&conn)?; 
+        Ok(conn) => {  // Database already exists, check for schema/data updates
+            let (version, my_uuid) = migrate(&conn)?; 
             info!("Opened database {path}, version {version:02} with UUID {my_uuid}");
             Ok(conn)
         },
