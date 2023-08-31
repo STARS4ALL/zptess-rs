@@ -19,15 +19,19 @@ const UUID_QUERY : &str = "SELECT value from config_t WHERE section ='database' 
 
 #[derive(RustEmbed)]
 #[folder = "resources/sql/"]
-//#[include = "*.sql"]
+#[include = "*.sql"]
+#[exclude = "initial/*"]
+#[exclude = "updates/*"]
 struct SchemaAsset;
 
 #[derive(RustEmbed)]
-#[folder = "resources/sql/initial"]
+#[folder = "resources/sql/initial/"]
+#[include = "*.sql"]
 struct InitialAsset;
 
 #[derive(RustEmbed)]
-#[folder = "resources/sql/updates"]
+#[folder = "resources/sql/updates/"]
+#[include = "*.sql"]
 struct UpdatesAsset;
 
 // =========================== //
@@ -62,7 +66,7 @@ fn file_order(s: &str, n: usize) -> i8 {
 // Creates a new database file, schema and populate with initial values
 fn create(conn: &Connection) -> Result<String> {
     let sql = SchemaAsset::get("schema.sql").expect("Schema resource file");
-    let sql = std::str::from_utf8(sql.data.as_ref())?;
+    let sql = str::from_utf8(sql.data.as_ref())?;
     conn.execute_batch(sql).expect("Schema creation failed");
     // Writes an UUID into the config table
     let my_uuid = uuid::Uuid::new_v4().hyphenated().to_string();
@@ -73,7 +77,7 @@ fn create(conn: &Connection) -> Result<String> {
         let f = file.as_ref();
         debug!("Initial database population with file {f}");
         let sql = InitialAsset::get(f).expect("Missing initial file");
-        let sql = std::str::from_utf8(sql.data.as_ref())?;
+        let sql = str::from_utf8(sql.data.as_ref())?;
         conn.execute_batch(sql).expect("Initial database population failed");
     }
     Ok(my_uuid)
@@ -91,7 +95,7 @@ fn update(conn: &Connection) -> Result<(i8, String)> {
         if ord > version {
             warn!("Migrating database with SQL file {f}");
             let sql = UpdatesAsset::get(f).expect("Getting SQL file asset");
-            let sql = std::str::from_utf8(sql.data.as_ref())?;
+            let sql = str::from_utf8(sql.data.as_ref())?;
             conn.execute_batch(sql)?;
         } else {
             debug!("Skipping SQL file {f}");
