@@ -7,7 +7,7 @@ use rust_embed::RustEmbed;
 use rusqlite::{Connection, OpenFlags, Result};
 
 // Logging stuff
-use tracing::{info, debug};
+use tracing::{info, debug, warn};
 
 use uuid;
 
@@ -18,18 +18,16 @@ const UUID_QUERY : &str = "SELECT value from config_t WHERE section ='database' 
 // ========================= //
 
 #[derive(RustEmbed)]
-#[folder = "resources/"]
-//#[prefix = "sql/"]
+#[folder = "resources/sql/"]
+//#[include = "*.sql"]
 struct SchemaAsset;
 
 #[derive(RustEmbed)]
 #[folder = "resources/sql/initial"]
-//#[prefix = "sql/"]
 struct InitialAsset;
 
 #[derive(RustEmbed)]
 #[folder = "resources/sql/updates"]
-//#[prefix = "sql/"]
 struct UpdatesAsset;
 
 // =========================== //
@@ -63,7 +61,7 @@ fn file_order(s: &str, n: usize) -> i8 {
 
 // Creates a new database file, schema and populate with initial values
 fn create(conn: &Connection) -> Result<String> {
-    let sql = SchemaAsset::get("sql/schema.sql").expect("Schema resource file");
+    let sql = SchemaAsset::get("schema.sql").expect("Schema resource file");
     let sql = std::str::from_utf8(sql.data.as_ref())?;
     conn.execute_batch(sql).expect("Schema creation failed");
     // Writes an UUID into the config table
@@ -91,12 +89,10 @@ fn update(conn: &Connection) -> Result<(i8, String)> {
         let f = file.as_ref();
         let ord = file_order(f, 2);
         if ord > version {
-            debug!("Updating database with SQL file {f}");
+            warn!("Migrating database with SQL file {f}");
             let sql = UpdatesAsset::get(f).expect("Getting SQL file asset");
             let sql = std::str::from_utf8(sql.data.as_ref())?;
             conn.execute_batch(sql)?;
-            debug!("Skipping SQL file {f}");
-            continue;    
         } else {
             debug!("Skipping SQL file {f}");
             continue;   
@@ -120,6 +116,7 @@ pub fn init(path: &str) -> Result<Connection> {
         },
         Err(_) => { // Database does not exists yet, create schema and populate with initial data
             let conn = Connection::open(path)?;
+            info!("Creating new database {path}");
             let my_uuid = create(&conn)?;
             info!("Created database {path} with UUID {my_uuid}");
             Ok(conn)
