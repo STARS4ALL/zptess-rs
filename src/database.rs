@@ -19,7 +19,7 @@ const UUID_QUERY : &str = "SELECT value from config_t WHERE section ='database' 
 
 #[derive(RustEmbed)]
 #[folder = "resources/sql/"]
-//#[include = "*.sql"]
+#[include = "*.sql"]
 struct SchemaAsset;
 
 #[derive(RustEmbed)]
