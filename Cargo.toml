@@ -8,9 +8,13 @@ edition = "2021"
 [dependencies]
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
+tracing-appender = "0.2.2"
+
 clap = { version = "4.4.1", features = [
-    "derive", # Used dervie API
+    "derive",   # The derive API
+    "string",   # To enable dynamic, owned values for default string values.
 ]}
+
 rust-embed = { version = "8.0.0", features = [
     "include-exclude",
 ]}
@@ -22,4 +26,4 @@ uuid = { version = "1.4.1", features = [
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]}
-tracing-appender = "0.2.2"
+
