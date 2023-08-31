@@ -14,6 +14,7 @@ use uuid;
 
 const VERSION_QUERY : &str = "SELECT value from config_t WHERE section ='database' AND property = 'version'";
 const UUID_QUERY : &str = "SELECT value from config_t WHERE section ='database' AND property = 'uuid'";
+const SCHEMA_FILE:  &str = "schema.sql";
 
 // ========================= //
 
@@ -65,7 +66,7 @@ fn file_order(s: &str, n: usize) -> i8 {
 
 // Creates a new database file, schema and populate with initial values
 fn create(conn: &Connection) -> Result<String> {
-    let sql = SchemaAsset::get("schema.sql").expect("Schema resource file");
+    let sql = SchemaAsset::get(SCHEMA_FILE).expect("Schema resource file");
     let sql = str::from_utf8(sql.data.as_ref())?;
     conn.execute_batch(sql).expect("Schema creation failed");
     // Writes an UUID into the config table
