@@ -1,6 +1,6 @@
-use tracing::{Level};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
-use clap::{Parser, Subcommand, ValueEnum, Args};
+use tracing::Level;
 
 /*
 fn get_default_log_path() -> PathBuf {
@@ -21,17 +21,11 @@ struct Cli {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-  
-    /// SQLite database file
-    #[arg(short, long, value_name = "FILE", default_value = "zptess.db")]
-    dbase: String,
-
     /// Turn console debugging information on
     #[arg(short, long)]
     console: bool,
 
     /// Log to a file
-
     #[arg(short, long, value_name = "FILE", default_value = "zptess.log")]
     log_file: PathBuf,
 
@@ -41,7 +35,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-
     /// Database migration options
     Database {},
 
@@ -52,15 +45,15 @@ enum Commands {
         model: Model,
 
         /// Installed filter
-        #[arg(long, default_value="UV/IR-740")]
+        #[arg(long, default_value = "UV/IR-740")]
         filter: String,
 
         /// Power supply plug
-        #[arg(long, default_value="USB-A")]
+        #[arg(long, default_value = "USB-A")]
         plug: String,
 
         /// Box model
-        #[arg(long, default_value="FSH714")]
+        #[arg(long, default_value = "FSH714")]
         box_model: String,
 
         /// Author
@@ -69,10 +62,8 @@ enum Commands {
 
         #[command(flatten)]
         operation: Operation,
-
     },
 }
-
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
@@ -86,7 +77,7 @@ struct Operation {
     update: bool,
 
     /// Overwrites zero point
-    #[arg(short, long,  value_name = "ZP")]
+    #[arg(short, long, value_name = "ZP")]
     write_zero_point: Option<i32>,
 
     /// calibrate but don't update database
@@ -98,13 +89,12 @@ struct Operation {
     read: Option<Role>,
 }
 
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[clap(rename_all = "kebab-case")]
 enum Model {
     /// TESS WiFi model
     TessW,
-    
+
     /// TESS Portable model
     TessP,
 
@@ -117,7 +107,7 @@ enum Model {
 enum Role {
     /// Test photometer
     Test,
-    
+
     /// Reference photometer
     Ref,
 
@@ -125,16 +115,13 @@ enum Role {
     Both,
 }
 
-
 // Include this module as part of the binary, not the library
 // as this contains the actual implementation of the logging facility
 mod logging;
 
-
 fn main() {
-
     let cli = Cli::parse();
 
     let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
-    zptess::database::init(cli.dbase.as_str()).unwrap();
+    let mut connection = zptess::database::init();
 }

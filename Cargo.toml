@@ -14,16 +14,19 @@ clap = { version = "4.4.1", features = [
     "derive",   # The derive API
     "string",   # To enable dynamic, owned values for default string values.
 ]}
-
-rust-embed = { version = "8.0.0", features = [
-    "include-exclude",
-]}
-rusqlite = { version ="0.29.0", features = [
-	"bundled",
-]}
 uuid = { version = "1.4.1", features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]}
+chrono = "0.4.28"
+dotenvy = "0.15.7"
+r2d2 = "0.8.10"
+diesel = { version = "2.1.1", features = [
+	"sqlite", "chrono", "r2d2"
+]}
+diesel_migrations = { versions="2.1.0" , features = [
+    "sqlite"
+]}
+
 
