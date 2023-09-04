@@ -1,25 +1,33 @@
 pub mod udp {
 
     use super::super::payload::json::TESSPayload;
+    use std::io;
     use tokio::net::UdpSocket;
     use tracing::info;
 
     const BUF_SIZE: usize = 1024;
+    const ANY_ADDR: &str = "0.0.0.0";
 
-    async fn init() -> Result<UdpSocket, std::io::Error> {
-        UdpSocket::bind("0.0.0.0:2255").await
+    pub struct Transport {
+        socket: UdpSocket,
     }
 
-    pub async fn phot_task() {
-        let socket = init().expect("binding UDP socket");
-        loop {
+    impl Transport {
+        pub async fn new(port: u16) -> Result<Self, io::Error> {
+            let mut endpoint = String::from(ANY_ADDR);
+            endpoint.push(':');
+            endpoint.push_str(&port.to_string());
+            Ok(Self {
+                socket: UdpSocket::bind(endpoint).await?,
+            })
+        }
+
+        pub async fn reading(&self) -> Result<String, io::Error> {
             let mut buf = [0; BUF_SIZE];
-            let (amt, _src) = socket.recv_from(&mut buf).await.unwrap();
-            // Redeclare `buf` as slice of the received data.
+            let (amt, _src) = self.socket.recv_from(&mut buf).await?;
             let buf = &mut buf[..amt];
             let s = std::str::from_utf8(buf).expect("invalid UTF-8").trim();
-            let reading = TESSPayload::new(s);
-            info!("{reading:?}");
+            Ok(String::from(s))
         }
     }
 }
@@ -38,13 +46,35 @@ pub mod serial {
     #[cfg(unix)]
     const DEFAULT_TTY: &str = "/dev/ttyUSB0";
 
+    #[cfg(win)]
+    const DEFAULT_TTY: &str = "COM1";
+
     // <fH 00430><tA +2945><tO +2439><mZ -0000>
     const PATTERN1: &str = r"^<fH([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
     const PATTERN2: &str = r"^<fm([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
 
-    struct LineCodec;
+    pub struct Transport {
+        serial: SerialStream,
+    }
+    /*
+    impl Transport {
+        pub async fn new(baud: u16) -> Result<Self, io::Error> {
+            let mut port = tokio_serial::new(DEFAULT_TTY, 9600)
+                .open_native_async()
+                .unwrap();
+            #[cfg(unix)]
+            port.set_exclusive(false)
+                .expect("Unable to set serial port exclusive to false");
+            Ok(Transport { serial: port })
+        }
 
-    impl Decoder for LineCodec {
+        pub async fn reading(&self) -> Result<String, io::Error> {
+            let mut reader = self.framed(self.serial);
+            Ok(String::from("CUCUUU"))
+        }
+    }
+
+    impl Decoder for Transport {
         type Item = String;
         type Error = std::io::Error;
 
@@ -60,7 +90,7 @@ pub mod serial {
             Ok(None)
         }
     }
-
+    /*
     async fn serial_init() -> Result<SerialStream, std::io::Error> {
         let mut port = tokio_serial::new(DEFAULT_TTY, 9600)
             .open_native_async()
@@ -76,4 +106,6 @@ pub mod serial {
         let mut reader = LineCodec.framed(port);
         loop {}
     }
+    */
+    */
 }

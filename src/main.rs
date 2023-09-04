@@ -1,12 +1,11 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use tracing::Level;
-
+use zptess::photometer;
 // Include this module as part of the binary, not the library
 // as this contains the actual implementation of the logging facility
 mod logging;
 
-use zptess::photometer::transport::udp::phot_task;
 /*
 fn get_default_log_path() -> PathBuf {
     let mut path = env::current_exe().unwrap();
@@ -133,7 +132,7 @@ async fn main() {
     tracing::info!("Alla que vamos!");
 
     tokio::spawn(async move {
-        phot_task().await;
+        photometer::task(false).await;
     });
     // Nothing to do on the main task,
     // simply waits here
