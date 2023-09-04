@@ -39,3 +39,17 @@ diesel migration run
 ```
 
 diesel migration revert 
+
+
+## TESS Photometer features
+
+| Model   |      readings transport     |  readings payload  |   info transport   |  info payload  | 
+|---------|:---------------------------:|-------------------:|:------------------:|:---------------|
+| TESS-W  | udp:2255 or serial:9600 (1) | JSON or propietary | HTTP:80            | HTML           |
+| TESS-P  | serial:9600                 | JSON               | serial             | propietary (2) |
+| TAS     | serial:9600                 | JSON               | serial             | propietary (2) |
+| TESS4C  | udp:2255                    | JSON               | HTTP:80            | HTML           |
+
+*Notes*:
+1. Only for selected photometers (i.e. the reference photometer)
+2. Comand/Response protocol with custom text
