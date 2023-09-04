@@ -123,5 +123,6 @@ fn main() {
     let cli = Cli::parse();
 
     let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
-    let mut connection = zptess::database::init();
+    let database_url = zptess::get_database_url();
+    let _connection = zptess::database::init(&database_url);
 }

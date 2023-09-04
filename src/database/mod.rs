@@ -2,8 +2,6 @@ pub mod models;
 pub mod schema;
 pub mod views;
 
-use dotenvy::dotenv;
-use std::env;
 use std::error::Error;
 
 use tracing::{debug, info};
@@ -14,15 +12,12 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
-pub fn establish_connection() -> (SqliteConnection, String) {
-    dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let conn = SqliteConnection::establish(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url));
-    (conn, database_url)
+fn establish_connection(database_url: &str) -> SqliteConnection {
+    SqliteConnection::establish(&database_url)
+        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-pub fn get_database_version(connection: &mut SqliteConnection) -> String {
+fn get_database_version(connection: &mut SqliteConnection) -> String {
     use self::schema::config_t::dsl::*;
 
     let sql = config_t
@@ -37,7 +32,7 @@ pub fn get_database_version(connection: &mut SqliteConnection) -> String {
     return results[0].clone();
 }
 
-pub fn get_database_uuid(connection: &mut SqliteConnection) -> String {
+fn get_database_uuid(connection: &mut SqliteConnection) -> String {
     use self::schema::config_t::dsl::*;
 
     let sql = config_t
@@ -64,7 +59,7 @@ pub fn get_database_uuid(connection: &mut SqliteConnection) -> String {
     }
 }
 
-pub fn run_migrations(
+fn run_migrations(
     connection: &mut impl MigrationHarness<Sqlite>,
 ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // This will run the necessary migrations.
@@ -78,18 +73,14 @@ pub fn run_migrations(
     Ok(())
 }
 
-pub fn init() -> SqliteConnection {
-    let (mut connection, url) = establish_connection();
+pub fn init(database_url: &str) -> SqliteConnection {
+    let mut connection = establish_connection(database_url);
     let _result = run_migrations(&mut connection).expect("Running migrations");
-    //show_config(&mut connection);
-    //show_batch(&mut connection);
-    //let uuid = get_uuid2(&mut connection);
-    //println!("{:?}", uuid);
-    let uuid = get_database_uuid(&mut connection);
-    let version = get_database_version(&mut connection);
     info!(
         "Opened database {}, version {}, UUID = {}",
-        url, version, uuid
+        database_url,
+        get_database_version(&mut connection),
+        get_database_uuid(&mut connection)
     );
     connection
 }
