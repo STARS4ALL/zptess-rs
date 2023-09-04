@@ -1,8 +1,7 @@
+use tracing::Level;
 
-use tracing::{Level};
-
-use tracing_subscriber::{fmt, Registry};
 use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, Registry};
 
 use tracing_appender;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -10,13 +9,12 @@ use tracing_appender::non_blocking::WorkerGuard;
 use std::path::PathBuf;
 
 pub fn init(level: Level, console: bool, log_path: Option<PathBuf>) -> Vec<WorkerGuard> {
-
     let mut guards = Vec::new();
 
     let layer1 = if console {
         let layer1 = fmt::layer()
             .with_level(true) // include levels in formatted output
-            .with_target(true) // don't include targets
+            .with_target(false) // don't include targets
             .with_thread_ids(false) // don't include the thread ID of the current thread
             .with_thread_names(false) // include the name of the current thread
             .compact() // use the `Compact` formatting style.
@@ -32,10 +30,10 @@ pub fn init(level: Level, console: bool, log_path: Option<PathBuf>) -> Vec<Worke
         guards.push(guard);
         let layer2 = fmt::layer()
             .with_level(true) // include levels in formatted output
-            .with_target(true) // don't include targets
+            .with_target(false) // don't include targets
             .with_thread_ids(false) // don't include the thread ID of the current thread
             .with_thread_names(false) // include the name of the current thread
-            .compact()  // use the `Compact` formatting style.
+            .compact() // use the `Compact` formatting style.
             .with_writer(file_writer.with_max_level(level));
         Some(layer2)
     } else {

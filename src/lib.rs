@@ -1,5 +1,6 @@
 pub mod database;
 pub mod logging;
+pub mod photometer;
 
 use dotenvy::dotenv;
 use std::env;

@@ -2,6 +2,11 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use tracing::Level;
 
+// Include this module as part of the binary, not the library
+// as this contains the actual implementation of the logging facility
+mod logging;
+
+use zptess::photometer::transport::udp::phot_task;
 /*
 fn get_default_log_path() -> PathBuf {
     let mut path = env::current_exe().unwrap();
@@ -115,14 +120,22 @@ enum Role {
     Both,
 }
 
-// Include this module as part of the binary, not the library
-// as this contains the actual implementation of the logging facility
-mod logging;
+use tokio::signal;
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let cli = Cli::parse();
 
     let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
     let database_url = zptess::get_database_url();
     let _connection = zptess::database::init(&database_url);
+
+    tracing::info!("Alla que vamos!");
+
+    tokio::spawn(async move {
+        phot_task().await;
+    });
+    // Nothing to do on the main task,
+    // simply waits here
+    signal::ctrl_c().await.expect("Shutdown signal");
 }

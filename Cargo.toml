@@ -6,21 +6,27 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# logging
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 tracing-appender = "0.2.2"
 
+# General utilities
+chrono = "0.4.28"
+dotenvy = "0.15.7"
+
+# Comand Line parsing
 clap = { version = "4.4.1", features = [
     "derive",   # The derive API
     "string",   # To enable dynamic, owned values for default string values.
 ]}
+
+# Database Stuff
 uuid = { version = "1.4.1", features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]}
-chrono = "0.4.28"
-dotenvy = "0.15.7"
 r2d2 = "0.8.10"
 diesel = { version = "2.1.1", features = [
 	"sqlite", "chrono", "r2d2"
@@ -28,5 +34,12 @@ diesel = { version = "2.1.1", features = [
 diesel_migrations = { versions="2.1.0" , features = [
     "sqlite"
 ]}
+
+# Async & Multithreaded runtime
+tokio = { version = "1.32.0", features = ["full","io-util"] }
+
+# JSON Deserializer
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.105"
 
 
