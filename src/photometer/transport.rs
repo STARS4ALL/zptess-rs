@@ -25,13 +25,14 @@ pub mod udp {
         }
 
         pub async fn reading(&mut self) -> Result<String, io::Error> {
-            let mut buf = [0; BUF_SIZE];
-            let (amt, _src) = self.socket.recv_from(&mut buf).await?;
-            info!("Read {amt} bytes");
-            let s = std::str::from_utf8(&mut buf[..amt])
-                .expect("invalid UTF-8")
-                .trim();
-            Ok(String::from(s))
+            let (len, _src) = self.socket.recv_buf_from(&mut self.buffer).await?;
+            let s = String::from(
+                std::str::from_utf8(&self.buffer[..len])
+                    .expect("invalid UTF-8")
+                    .trim(),
+            );
+            self.buffer.clear();
+            Ok(s)
         }
     }
 }
