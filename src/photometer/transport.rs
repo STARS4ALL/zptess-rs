@@ -3,6 +3,7 @@ pub mod udp {
     use bytes::BytesMut;
     use std::io;
     use tokio::net::UdpSocket;
+    use tracing::info;
 
     const BUF_SIZE: usize = 1024;
     const ANY_ADDR: &str = "0.0.0.0";
@@ -24,9 +25,10 @@ pub mod udp {
         }
 
         pub async fn reading(&mut self) -> Result<String, io::Error> {
-            let (amt, _src) = self.socket.recv_from(&mut self.buffer).await?;
-            //let buf = &mut self.buffer[..amt];
-            let s = std::str::from_utf8(&mut self.buffer[..amt])
+            let mut buf = [0; BUF_SIZE];
+            let (amt, _src) = self.socket.recv_from(&mut buf).await?;
+            info!("Read {amt} bytes");
+            let s = std::str::from_utf8(&mut buf[..amt])
                 .expect("invalid UTF-8")
                 .trim();
             Ok(String::from(s))
