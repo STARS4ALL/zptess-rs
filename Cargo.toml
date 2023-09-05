@@ -49,3 +49,5 @@ bytes = "1.4.0"
 futures = "0.3.28"
 regex = "1.9.5"
 
+# Reading TESS-W infor from its Web Page
+reqwest = "0.11.20"
