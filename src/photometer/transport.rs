@@ -1,15 +1,15 @@
 pub mod udp {
 
-    use super::super::payload::json::TESSPayload;
+    use bytes::BytesMut;
     use std::io;
     use tokio::net::UdpSocket;
-    use tracing::info;
 
     const BUF_SIZE: usize = 1024;
     const ANY_ADDR: &str = "0.0.0.0";
 
     pub struct Transport {
         socket: UdpSocket,
+        buffer: BytesMut,
     }
 
     impl Transport {
@@ -19,13 +19,13 @@ pub mod udp {
             endpoint.push_str(&port.to_string());
             Ok(Self {
                 socket: UdpSocket::bind(endpoint).await?,
+                buffer: BytesMut::with_capacity(4096),
             })
         }
 
-        pub async fn reading(&self) -> Result<String, io::Error> {
-            let mut buf = [0; BUF_SIZE];
-            let (amt, _src) = self.socket.recv_from(&mut buf).await?;
-            let buf = &mut buf[..amt];
+        pub async fn reading(&mut self) -> Result<String, io::Error> {
+            let (amt, _src) = self.socket.recv_from(&mut self.buffer).await?;
+            let buf = &mut self.buffer[..amt];
             let s = std::str::from_utf8(buf).expect("invalid UTF-8").trim();
             Ok(String::from(s))
         }
@@ -39,6 +39,7 @@ pub mod serial {
     use futures::stream::StreamExt;
     use regex::Regex;
     use std::io;
+    use std::io::{Error, ErrorKind};
     use tokio_serial::SerialPortBuilderExt;
     use tokio_serial::SerialStream;
     use tokio_util::codec::{Decoder, Encoder};
@@ -96,6 +97,8 @@ pub mod serial {
         }
 
         pub async fn reading(&self) -> Result<String, io::Error> {
+            Err(Error::new(ErrorKind::Other, "oh no!"))
+            /*
             use std::io::{Error, ErrorKind};
             let mut reader = Foo.framed(self.serial);
             if let Some(line_result) = reader.next().await {
@@ -105,6 +108,7 @@ pub mod serial {
             } else {
                 Err(Error::new(ErrorKind::Other, "oh no!"))
             }
+            */
         }
     }
     /*

@@ -17,13 +17,13 @@ impl Photometer {
         })
     }
 
-    pub async fn reading(&self) -> Result<String, io::Error> {
+    pub async fn reading(&mut self) -> Result<String, io::Error> {
         self.transport.reading().await
     }
 }
 
 pub async fn task(is_ref_phot: bool) {
-    let photometer = Photometer::new(is_ref_phot).await.expect("New Photometer");
+    let mut photometer = Photometer::new(is_ref_phot).await.expect("New Photometer");
     loop {
         let line = photometer.reading().await.expect("Reading task");
         info!("{line:?}");
