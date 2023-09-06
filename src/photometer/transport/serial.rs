@@ -14,10 +14,6 @@ const DEFAULT_TTY: &str = "/dev/ttyUSB0";
 #[cfg(windows)]
 const DEFAULT_TTY: &str = "COM1";
 
-// <fH 00430><tA +2945><tO +2439><mZ -0000>
-const PATTERN1: &str = r"^<fH([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
-const PATTERN2: &str = r"^<fm([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
-
 struct LineCodec;
 
 impl Decoder for LineCodec {
