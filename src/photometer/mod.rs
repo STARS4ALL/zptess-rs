@@ -4,16 +4,16 @@ pub mod transport;
 use std::io;
 use tracing::info;
 
-pub struct Photometer {
+struct Photometer {
     is_ref_phot: bool,
-    transport: transport::udp::Transport,
+    transport: transport::serial::Transport,
 }
 
 impl Photometer {
     pub async fn new(is_ref_phot: bool) -> Result<Self, io::Error> {
         Ok(Self {
             is_ref_phot,
-            transport: transport::udp::Transport::new(2255).await?,
+            transport: transport::serial::Transport::new(9600).await?,
         })
     }
 
@@ -29,3 +29,10 @@ pub async fn task(is_ref_phot: bool) {
         info!("{line:?}");
     }
 }
+
+/*
+Ok(Self {
+            is_ref_phot,
+            transport: transport::udp::Transport::new(2255).await?,
+        })
+*/

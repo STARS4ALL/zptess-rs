@@ -3,7 +3,6 @@ pub mod udp {
     use bytes::BytesMut;
     use std::io;
     use tokio::net::UdpSocket;
-    use tracing::info;
 
     const BUF_SIZE: usize = 1024;
     const ANY_ADDR: &str = "0.0.0.0";
@@ -47,7 +46,8 @@ pub mod serial {
     use std::io::{Error, ErrorKind};
     use tokio_serial::SerialPortBuilderExt;
     use tokio_serial::SerialStream;
-    use tokio_util::codec::{Decoder, Encoder};
+    use tokio_util::codec::{Decoder, Encoder, Framed};
+    use tracing::info;
 
     #[cfg(unix)]
     const DEFAULT_TTY: &str = "/dev/ttyUSB0";
@@ -59,9 +59,9 @@ pub mod serial {
     const PATTERN1: &str = r"^<fH([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
     const PATTERN2: &str = r"^<fm([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
 
-    struct Foo;
+    struct LineCodec;
 
-    impl Decoder for Foo {
+    impl Decoder for LineCodec {
         type Item = String;
         type Error = io::Error;
 
@@ -78,16 +78,17 @@ pub mod serial {
         }
     }
 
-    impl Encoder<String> for Foo {
+    /*
+    impl Encoder<String> for LineCodec {
         type Error = io::Error;
-
         fn encode(&mut self, _item: String, _dst: &mut BytesMut) -> Result<(), Self::Error> {
             Ok(())
         }
     }
+    */
 
     pub struct Transport {
-        serial: SerialStream,
+        reader: Framed<SerialStream, LineCodec>,
     }
 
     impl Transport {
@@ -98,22 +99,19 @@ pub mod serial {
             #[cfg(unix)]
             port.set_exclusive(false)
                 .expect("Unable to set serial port exclusive to false");
-            Ok(Transport { serial: port })
+            Ok(Transport {
+                reader: LineCodec.framed(port),
+            })
         }
 
-        pub async fn reading(&self) -> Result<String, io::Error> {
-            Err(Error::new(ErrorKind::Other, "oh no!"))
-            /*
-            use std::io::{Error, ErrorKind};
-            let mut reader = Foo.framed(self.serial);
-            if let Some(line_result) = reader.next().await {
+        pub async fn reading(&mut self) -> Result<String, io::Error> {
+            if let Some(line_result) = self.reader.next().await {
                 let line = line_result.expect("Failed to read line");
                 let line = line.trim();
                 Ok(String::from(line))
             } else {
                 Err(Error::new(ErrorKind::Other, "oh no!"))
             }
-            */
         }
     }
     /*
