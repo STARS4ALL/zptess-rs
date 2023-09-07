@@ -1,7 +1,7 @@
 pub mod serial;
 pub mod udp;
 
-use std::io;
+use std::io::Error;
 
 pub enum Transport {
     Serial(serial::Transport),
@@ -9,7 +9,7 @@ pub enum Transport {
 }
 
 impl Transport {
-    pub async fn reading(&mut self) -> Result<String, io::Error> {
+    pub async fn reading(&mut self) -> Result<String, Error> {
         match self {
             Transport::Serial(t) => t.reading().await,
             Transport::Udp(t) => t.reading().await,

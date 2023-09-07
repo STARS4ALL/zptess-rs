@@ -1,5 +1,5 @@
 // Cristobal Garcia's old way to deliver readings
-use crate::photometer::payload::info::{Cristogg, Payload};
+use super::info::{Cristogg, Payload};
 use regex::Regex;
 use std::io::{Error, ErrorKind};
 

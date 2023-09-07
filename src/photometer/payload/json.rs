@@ -1,5 +1,5 @@
 // JSON parsing stuff
-use crate::photometer::payload::info::Payload;
+use super::info::Payload;
 use serde_json;
 use std::io::{Error, ErrorKind};
 
