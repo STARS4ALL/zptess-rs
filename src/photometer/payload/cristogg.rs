@@ -12,18 +12,21 @@ const PATTERN2: &'static str = r"^<fm([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})
 
 #[derive(Debug)]
 pub struct Payload {
-    re: Regex,
+    re: Vec<Regex>,
 }
 
 impl Payload {
     pub fn new() -> Self {
         Self {
-            re: Regex::new(PATTERN2).expect("Failed pattern"),
+            re: vec![
+                Regex::new(PATTERN1).expect("Failed pattern"),
+                Regex::new(PATTERN2).expect("Failed pattern"),
+            ],
         }
     }
 
     pub fn decode(&self, line: &str) -> Result<PayloadInfo, Error> {
-        if let Some(result) = self.re.captures(line) {
+        if let Some(result) = self.re[0].captures(line) {
             tracing::info!("{:?}", result);
             Ok(PayloadInfo::Cristogg(Cristogg {
                 freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
