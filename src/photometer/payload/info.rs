@@ -29,7 +29,7 @@ pub struct Cristogg {
 }
 
 #[derive(Debug)]
-pub enum PayloadInfo {
+pub enum Payload {
     Json(Json),
     Cristogg(Cristogg),
 }

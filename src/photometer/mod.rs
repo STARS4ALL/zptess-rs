@@ -1,19 +1,19 @@
 pub mod payload;
 pub mod transport;
 
-use payload::Payload;
+use payload::Decoder;
 use tracing::info;
 use transport::serial;
 use transport::udp;
 use transport::Transport;
 
-fn choose_payload_type(is_ref_phot: bool) -> payload::Payload {
-    let payload = if !is_ref_phot {
-        Payload::Json(payload::json::Payload::new())
+fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
+    let decoder = if !is_ref_phot {
+        Decoder::Json(payload::json::Decoder::new())
     } else {
-        Payload::Cristogg(payload::cristogg::Payload::new())
+        Decoder::Cristogg(payload::cristogg::Decoder::new())
     };
-    payload
+    decoder
 }
 
 async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
@@ -32,12 +32,12 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
 pub async fn task(is_ref_phot: bool) {
     let mut transport = choose_transport_type(is_ref_phot).await;
 
-    let payload = choose_payload_type(is_ref_phot);
+    let decoder = choose_decoder_type(is_ref_phot);
     loop {
         let raw_bytes = transport.reading().await.expect("Reading task");
         //info!("{raw_bytes:?}");
-        match payload.decode(&raw_bytes) {
-            Ok(payload_info) => info!("{payload_info:?}"),
+        match decoder.decode(&raw_bytes) {
+            Ok(payload) => info!("{payload:?}"),
             Err(_) => (),
         }
     }

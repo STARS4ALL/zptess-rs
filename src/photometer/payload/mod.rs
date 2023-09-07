@@ -4,16 +4,16 @@ pub mod cristogg;
 pub mod info;
 pub mod json;
 
-pub enum Payload {
-    Json(json::Payload),
-    Cristogg(cristogg::Payload),
+pub enum Decoder {
+    Json(json::Decoder),
+    Cristogg(cristogg::Decoder),
 }
 
-impl Payload {
-    pub fn decode(&self, line: &str) -> Result<info::PayloadInfo, Error> {
+impl Decoder {
+    pub fn decode(&self, line: &str) -> Result<info::Payload, Error> {
         match self {
-            Payload::Cristogg(p) => p.decode(line),
-            Payload::Json(p) => p.decode(line),
+            Decoder::Cristogg(p) => p.decode(line),
+            Decoder::Json(p) => p.decode(line),
         }
     }
 }
