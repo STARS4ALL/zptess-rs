@@ -26,7 +26,6 @@ impl Decoder {
     pub fn decode(&self, line: &str) -> Result<Payload, Error> {
         for re in self.re.iter() {
             if let Some(result) = re.captures(line) {
-                tracing::info!("{:?}", result);
                 return Ok(Payload::Cristogg(Cristogg {
                     freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
                     zp: result[4].trim().parse::<f32>().expect("ZP"),
