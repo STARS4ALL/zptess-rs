@@ -6,7 +6,7 @@ pub mod photometer;
 use dotenvy::dotenv;
 use std::env;
 
-const DATABASE_URL: &str = "DATABASE_URL";
+const DATABASE_URL: &'static str = "DATABASE_URL";
 
 pub fn get_database_url() -> String {
     dotenv().ok();

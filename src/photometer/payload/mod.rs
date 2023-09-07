@@ -1,8 +1,8 @@
-use std::io::Error;
-
 pub mod cristogg;
 pub mod info;
 pub mod json;
+
+use std::io::Error;
 
 pub enum Decoder {
     Json(json::Decoder),
