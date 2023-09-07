@@ -26,16 +26,17 @@ impl Payload {
     }
 
     pub fn decode(&self, line: &str) -> Result<PayloadInfo, Error> {
-        if let Some(result) = self.re[0].captures(line) {
-            tracing::info!("{:?}", result);
-            Ok(PayloadInfo::Cristogg(Cristogg {
-                freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
-                zp: result[4].trim().parse::<f32>().expect("ZP"),
-                tbox: result[2].trim().parse::<f32>().expect("Temp Box") / 100.0,
-                tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
-            }))
-        } else {
-            Err(Error::new(ErrorKind::Other, "invalid payload"))
+        for re in self.re.iter() {
+            if let Some(result) = re.captures(line) {
+                tracing::info!("{:?}", result);
+                return Ok(PayloadInfo::Cristogg(Cristogg {
+                    freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
+                    zp: result[4].trim().parse::<f32>().expect("ZP"),
+                    tbox: result[2].trim().parse::<f32>().expect("Temp Box") / 100.0,
+                    tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
+                }));
+            }
         }
+        Err(Error::new(ErrorKind::Other, "invalid payload"))
     }
 }
