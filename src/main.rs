@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use tracing::Level;
 use zptess::argparse::parse;
 use zptess::photometer;
@@ -37,6 +36,11 @@ async fn main() {
     tokio::spawn(async move {
         photometer::task(false).await;
     });
+
+    tokio::spawn(async move {
+        photometer::task(true).await;
+    });
+
     // Nothing to do on the main task,
     // simply waits here
     signal::ctrl_c().await.expect("Shutdown signal");

@@ -1,38 +1,44 @@
 pub mod payload;
 pub mod transport;
 
-use std::io;
+use payload::Payload;
 use tracing::info;
+use transport::serial;
+use transport::udp;
+use transport::Transport;
 
-struct Photometer {
-    is_ref_phot: bool,
-    transport: transport::serial::Transport,
+fn choose_payload_type(is_ref_phot: bool) -> payload::Payload {
+    let payload = if !is_ref_phot {
+        Payload::Json(payload::json::Payload::new())
+    } else {
+        Payload::Cristogg(payload::cristogg::Payload::new())
+    };
+    payload
 }
 
-impl Photometer {
-    pub async fn new(is_ref_phot: bool) -> Result<Self, io::Error> {
-        Ok(Self {
-            is_ref_phot,
-            transport: transport::serial::Transport::new(9600).await?,
-        })
-    }
-
-    pub async fn reading(&mut self) -> Result<String, io::Error> {
-        self.transport.reading().await
-    }
+async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
+    let transport = if !is_ref_phot {
+        Transport::Udp(udp::Transport::new(2255).await.expect("New UDP Transport"))
+    } else {
+        Transport::Serial(
+            serial::Transport::new(9600)
+                .await
+                .expect("New serial Transport"),
+        )
+    };
+    transport
 }
 
 pub async fn task(is_ref_phot: bool) {
-    let mut photometer = Photometer::new(is_ref_phot).await.expect("New Photometer");
+    let mut transport = choose_transport_type(is_ref_phot).await;
+
+    let payload = choose_payload_type(is_ref_phot);
     loop {
-        let line = photometer.reading().await.expect("Reading task");
-        info!("{line:?}");
+        let raw_bytes = transport.reading().await.expect("Reading task");
+        //info!("{raw_bytes:?}");
+        match payload.decode(&raw_bytes) {
+            Ok(payload_info) => info!("{payload_info:?}"),
+            Err(_) => (),
+        }
     }
 }
-
-/*
-Ok(Self {
-            is_ref_phot,
-            transport: transport::udp::Transport::new(2255).await?,
-        })
-*/

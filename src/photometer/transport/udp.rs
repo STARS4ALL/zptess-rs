@@ -2,8 +2,8 @@ use bytes::BytesMut;
 use std::io;
 use tokio::net::UdpSocket;
 
-const BUF_SIZE: usize = 1024;
-const ANY_ADDR: &str = "0.0.0.0";
+const BUF_SIZE: usize = 256;
+const ANY_ADDR: &'static str = "0.0.0.0";
 
 pub struct Transport {
     socket: UdpSocket,

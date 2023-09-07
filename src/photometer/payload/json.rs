@@ -1,24 +1,19 @@
 // JSON parsing stuff
-use serde::Deserialize;
+use crate::photometer::payload::info::PayloadInfo;
 use serde_json;
+use std::io::{Error, ErrorKind};
 
-#[derive(Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct TESSPayload {
-    udp: u32,
-    rev: i8,
-    name: String,
-    freq: f32,
-    mag: f32,
-    tamb: f32,
-    tsky: f32,
-    wdBm: i16,
-    ain: i16,
-    ZP: f32,
-}
+pub struct Payload;
 
-impl TESSPayload {
-    pub fn new(line: &str) -> Self {
-        serde_json::from_str(line).expect("Decoding JSON")
+impl Payload {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn decode(&self, line: &str) -> Result<PayloadInfo, Error> {
+        match serde_json::from_str(line) {
+            Ok(info) => Ok(PayloadInfo::Json(info)),
+            Err(_) => Err(Error::new(ErrorKind::Other, "invalid payload")),
+        }
     }
 }
