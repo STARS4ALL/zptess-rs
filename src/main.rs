@@ -24,7 +24,8 @@ struct Cli {
 use tokio::signal;
 use zptess;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
+//#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let cli = parse();
 
