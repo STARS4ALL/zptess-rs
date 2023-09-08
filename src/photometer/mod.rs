@@ -38,7 +38,7 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
 pub async fn task(pool: Pool, is_ref_phot: bool) {
     if is_ref_phot {
         let mut discoverer = database::Discoverer::new(&pool);
-        let _info = discoverer.discover();
+        let _info = discoverer.discover().await;
     } else {
         let discoverer = http::Discoverer::new("http://192.168.4.1/config");
         let _info = discoverer.discover().await;

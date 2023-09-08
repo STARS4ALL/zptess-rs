@@ -1,20 +1,19 @@
-use super::super::super::database::{models::Config, Db, Pool, PooledConnection};
+use super::super::super::database::{models::Config, Db, Pool};
 use super::Info;
 use diesel::prelude::*;
+use tokio::task;
 use tracing::{debug, error, info};
 
 pub struct Discoverer {
-    conn: PooledConnection,
+    pool: Pool,
 }
 
 impl Discoverer {
     pub fn new(pool: &Pool) -> Self {
-        Self {
-            conn: pool.get().unwrap(),
-        }
+        Self { pool: pool.clone() }
     }
 
-    pub fn discover(&mut self) -> Info {
+    pub async fn discover(&mut self) -> Info {
         use super::super::super::database::schema::config_t::dsl::*;
         let sql = config_t
             .filter(section.eq("ref-device"))
@@ -23,8 +22,12 @@ impl Discoverer {
             .select(Config::as_select());
 
         debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
-
-        let results: Vec<Config> = sql.load(&mut self.conn).expect("Error loading config");
+        let mut conn1 = self.pool.get().unwrap();
+        let results =
+            task::spawn_blocking(move || sql.load(&mut conn1).expect("Error loading config"))
+                .await
+                .expect("Exec discovery SQL");
+        //let results: Vec<Config> = sql.load(&mut self.conn).expect("Error loading config");
         debug!("{:?}", results);
 
         let mut info = Info::new();
