@@ -13,7 +13,7 @@ impl<'a> Discoverer<'a> {
         Self { pool }
     }
 
-    pub async fn discover(&mut self) -> Info {
+    pub async fn discover(&self) -> Info {
         use super::super::super::database::schema::config_t::dsl::*;
         let sql = config_t
             .filter(section.eq("ref-device"))

@@ -32,18 +32,17 @@ async fn main() {
     let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
-    tracing::info!("Alla que vamos!");
 
     let pool = zptess::database::get_connection_pool(&database_url);
 
     let pool1 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(pool1, false).await;
+        photometer::task(pool1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
-    let pool2 = pool.clone();
+    let pool1 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(pool2, true).await;
+        photometer::task(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
     });
 
     // Nothing to do on the main task,
