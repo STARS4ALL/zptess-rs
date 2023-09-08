@@ -4,13 +4,13 @@ use diesel::prelude::*;
 use tokio::task;
 use tracing::{debug, error, info};
 
-pub struct Discoverer {
-    pool: Pool,
+pub struct Discoverer<'a> {
+    pool: &'a Pool,
 }
 
-impl Discoverer {
-    pub fn new(pool: &Pool) -> Self {
-        Self { pool: pool.clone() }
+impl<'a> Discoverer<'a> {
+    pub fn new(pool: &'a Pool) -> Self {
+        Self { pool }
     }
 
     pub async fn discover(&mut self) -> Info {
