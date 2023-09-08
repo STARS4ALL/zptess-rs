@@ -1,3 +1,4 @@
+pub mod discovery;
 pub mod payload;
 pub mod transport;
 
@@ -6,6 +7,11 @@ use tracing::info;
 use transport::serial;
 use transport::udp;
 use transport::Transport;
+
+use discovery::database;
+use discovery::http;
+
+use super::database::Pool;
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
     let decoder = if !is_ref_phot {
@@ -29,7 +35,14 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn task(is_ref_phot: bool) {
+pub async fn task(pool: Pool, is_ref_phot: bool) {
+    if is_ref_phot {
+        let mut discoverer = database::Discoverer::new(&pool);
+        let _info = discoverer.discover();
+    } else {
+        let discoverer = http::Discoverer::new("http://192.168.4.1/config");
+        let _info = discoverer.discover().await;
+    }
     let mut transport = choose_transport_type(is_ref_phot).await;
 
     let decoder = choose_decoder_type(is_ref_phot);

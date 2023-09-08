@@ -22,6 +22,7 @@ struct Cli {
 */
 
 use tokio::signal;
+use zptess;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -29,16 +30,19 @@ async fn main() {
 
     let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
     let database_url = zptess::get_database_url();
-    let _connection = zptess::database::init(&database_url);
-
+    zptess::database::init(&database_url);
     tracing::info!("Alla que vamos!");
 
+    let pool = zptess::database::get_connection_pool(&database_url);
+
+    let pool1 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(false).await;
+        photometer::task(pool1, false).await;
     });
 
+    let pool2 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(true).await;
+        photometer::task(pool2, true).await;
     });
 
     // Nothing to do on the main task,
