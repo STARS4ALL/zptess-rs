@@ -22,12 +22,14 @@ impl<'a> Discoverer<'a> {
             .select(Config::as_select());
 
         debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
-        let mut conn1 = self.pool.get().unwrap();
+        let mut conn1 = self
+            .pool
+            .get()
+            .expect("Getting Db conn when loading config");
         let results =
             task::spawn_blocking(move || sql.load(&mut conn1).expect("Error loading config"))
                 .await
                 .expect("Exec discovery SQL");
-        //let results: Vec<Config> = sql.load(&mut self.conn).expect("Error loading config");
         debug!("{:?}", results);
 
         let mut info = Info::new();
