@@ -47,5 +47,5 @@ async fn main() {
     futures::future::join_all(vec![ftest, fref]).await;
     // Nothing to do on the main task,
     // simply waits here
-    //signal::ctrl_c().await.expect("Shutdown signal");
+    signal::ctrl_c().await.expect("Shutdown signal");
 }

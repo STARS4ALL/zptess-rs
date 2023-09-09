@@ -1,4 +1,4 @@
-use super::Sample;
+use super::RawSample;
 use bytes::BytesMut;
 use chrono::prelude::*;
 use std::io;
@@ -23,7 +23,7 @@ impl Transport {
         })
     }
 
-    pub async fn reading(&mut self) -> Result<Sample, io::Error> {
+    pub async fn reading(&mut self) -> Result<RawSample, io::Error> {
         let (len, _src) = self.socket.recv_buf_from(&mut self.buffer).await?;
         let tstamp = Utc::now();
         let s = String::from(
@@ -32,6 +32,6 @@ impl Transport {
                 .trim(),
         );
         self.buffer.clear();
-        Ok(Sample(tstamp, s))
+        Ok(RawSample(tstamp, s))
     }
 }

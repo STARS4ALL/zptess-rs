@@ -6,7 +6,7 @@ use payload::Decoder;
 use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
-use transport::{Sample, Transport};
+use transport::{RawSample, Transport};
 
 use discovery::database;
 use discovery::http;
@@ -47,7 +47,7 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool, is_dry_run: bool) {
         let mut transport = choose_transport_type(is_ref_phot).await;
         let mut decoder = choose_decoder_type(is_ref_phot);
         loop {
-            let Sample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
+            let RawSample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
             //info!("{raw_bytes:?}");
             match decoder.decode(tstamp, &raw_bytes) {
                 Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),

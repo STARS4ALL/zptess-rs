@@ -3,7 +3,6 @@ use super::super::super::Timestamp;
 use super::info::{Json, Payload};
 use serde_json;
 use std::io::{Error, ErrorKind};
-use tracing::info;
 
 pub struct Decoder {
     sample: Option<(Timestamp, Json)>,

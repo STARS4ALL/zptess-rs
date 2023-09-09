@@ -1,6 +1,6 @@
 // Serial Port Stuff
 
-use super::Sample;
+use super::RawSample;
 use bytes::BytesMut;
 use chrono::prelude::*;
 use futures::stream::StreamExt;
@@ -62,12 +62,12 @@ impl Transport {
         })
     }
 
-    pub async fn reading(&mut self) -> Result<Sample, io::Error> {
+    pub async fn reading(&mut self) -> Result<RawSample, io::Error> {
         if let Some(line_result) = self.reader.next().await {
             let tstamp = Utc::now();
             let line = line_result.expect("Failed to read line");
             let line = line.trim();
-            Ok(Sample(tstamp, String::from(line)))
+            Ok(RawSample(tstamp, String::from(line)))
         } else {
             Err(Error::new(ErrorKind::Other, "No line_result"))
         }
