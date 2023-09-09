@@ -1,4 +1,6 @@
+use super::super::super::Timestamp;
 use bytes::BytesMut;
+use chrono::prelude::*;
 use std::io;
 use tokio::net::UdpSocket;
 
@@ -21,14 +23,15 @@ impl Transport {
         })
     }
 
-    pub async fn reading(&mut self) -> Result<String, io::Error> {
+    pub async fn reading(&mut self) -> Result<(Timestamp, String), io::Error> {
         let (len, _src) = self.socket.recv_buf_from(&mut self.buffer).await?;
+        let tstamp = Utc::now();
         let s = String::from(
             std::str::from_utf8(&self.buffer[..len])
                 .expect("invalid UTF-8")
                 .trim(),
         );
         self.buffer.clear();
-        Ok(s)
+        Ok((tstamp, s))
     }
 }

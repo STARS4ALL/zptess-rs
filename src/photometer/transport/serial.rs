@@ -1,5 +1,7 @@
 // Serial Port Stuff
+use super::super::super::Timestamp;
 use bytes::BytesMut;
+use chrono::prelude::*;
 use futures::stream::StreamExt;
 use std::io;
 use std::io::{Error, ErrorKind};
@@ -59,11 +61,12 @@ impl Transport {
         })
     }
 
-    pub async fn reading(&mut self) -> Result<String, io::Error> {
+    pub async fn reading(&mut self) -> Result<(Timestamp, String), io::Error> {
         if let Some(line_result) = self.reader.next().await {
+            let tstamp = Utc::now();
             let line = line_result.expect("Failed to read line");
             let line = line.trim();
-            Ok(String::from(line))
+            Ok((tstamp, String::from(line)))
         } else {
             Err(Error::new(ErrorKind::Other, "No line_result"))
         }

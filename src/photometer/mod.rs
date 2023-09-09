@@ -47,10 +47,10 @@ pub async fn task(pool: Pool, is_ref_phot: bool) {
 
     let decoder = choose_decoder_type(is_ref_phot);
     loop {
-        let raw_bytes = transport.reading().await.expect("Reading task");
+        let (tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
         //info!("{raw_bytes:?}");
         match decoder.decode(&raw_bytes) {
-            Ok(payload) => info!("{payload:?}"),
+            Ok(payload) => info!("{tstamp:?} {payload:?}"),
             Err(_) => (),
         }
     }

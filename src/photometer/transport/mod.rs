@@ -1,6 +1,7 @@
 pub mod serial;
 pub mod udp;
 
+use super::super::Timestamp;
 use std::io::Error;
 
 pub enum Transport {
@@ -9,7 +10,7 @@ pub enum Transport {
 }
 
 impl Transport {
-    pub async fn reading(&mut self) -> Result<String, Error> {
+    pub async fn reading(&mut self) -> Result<(Timestamp, String), Error> {
         match self {
             Transport::Serial(t) => t.reading().await,
             Transport::Udp(t) => t.reading().await,
