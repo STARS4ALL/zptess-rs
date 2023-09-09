@@ -37,12 +37,12 @@ async fn main() {
 
     let pool1 = pool.clone();
     let ftest = tokio::spawn(async move {
-        photometer::calibrate(pool1, false, true).await; // pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, false, false).await; // pool1 is moved to the task and gets out of scope
     });
 
     let pool1 = pool.clone();
     let fref = tokio::spawn(async move {
-        photometer::calibrate(pool1, true, true).await; // again: pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, true, false).await; // again: pool1 is moved to the task and gets out of scope
     });
     futures::future::join_all(vec![ftest, fref]).await;
     // Nothing to do on the main task,
