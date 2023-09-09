@@ -36,6 +36,10 @@ impl Decoder {
                         tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
                     }),
                 ));
+            } else {
+                if line == "" {
+                    return Err(Error::new(ErrorKind::Other, "empty line"));
+                }
             }
         }
         Err(Error::new(ErrorKind::Other, "invalid cristogg payload"))

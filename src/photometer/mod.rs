@@ -3,7 +3,7 @@ pub mod payload;
 pub mod transport;
 
 use payload::Decoder;
-use tracing::{error, info};
+use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
 use transport::{Sample, Transport};
@@ -51,7 +51,7 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool, is_dry_run: bool) {
             //info!("{raw_bytes:?}");
             match decoder.decode(tstamp, &raw_bytes) {
                 Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),
-                Err(e) => error!("{e:?}"),
+                Err(e) => debug!("{e:?}"),
             }
         }
     }
