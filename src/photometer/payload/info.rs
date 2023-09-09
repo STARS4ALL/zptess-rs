@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 // --
 // This is the decoded, new JSON format payload
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct Json {
     pub udp: u32,

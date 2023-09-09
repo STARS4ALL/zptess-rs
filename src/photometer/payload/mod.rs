@@ -2,6 +2,7 @@ pub mod cristogg;
 pub mod info;
 pub mod json;
 
+use super::super::Timestamp;
 use info::Payload;
 use std::io::Error;
 
@@ -11,10 +12,10 @@ pub enum Decoder {
 }
 
 impl Decoder {
-    pub fn decode(&self, line: &str) -> Result<Payload, Error> {
+    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload), Error> {
         match self {
-            Decoder::Cristogg(p) => p.decode(line),
-            Decoder::Json(p) => p.decode(line),
+            Decoder::Cristogg(p) => p.decode(tstamp, line),
+            Decoder::Json(p) => p.decode(tstamp, line),
         }
     }
 }

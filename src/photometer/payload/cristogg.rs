@@ -1,4 +1,5 @@
 // Cristobal Garcia's old way to deliver readings
+use super::super::super::Timestamp;
 use super::info::{Cristogg, Payload};
 use regex::Regex;
 use std::io::{Error, ErrorKind};
@@ -23,17 +24,20 @@ impl Decoder {
         }
     }
 
-    pub fn decode(&self, line: &str) -> Result<Payload, Error> {
+    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload), Error> {
         for re in self.re.iter() {
             if let Some(result) = re.captures(line) {
-                return Ok(Payload::Cristogg(Cristogg {
-                    freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
-                    zp: result[4].trim().parse::<f32>().expect("ZP"),
-                    tbox: result[2].trim().parse::<f32>().expect("Temp Box") / 100.0,
-                    tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
-                }));
+                return Ok((
+                    tstamp,
+                    Payload::Cristogg(Cristogg {
+                        freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
+                        zp: result[4].trim().parse::<f32>().expect("ZP"),
+                        tbox: result[2].trim().parse::<f32>().expect("Temp Box") / 100.0,
+                        tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
+                    }),
+                ));
             }
         }
-        Err(Error::new(ErrorKind::Other, "invalid payload"))
+        Err(Error::new(ErrorKind::Other, "invalid cristogg payload"))
     }
 }

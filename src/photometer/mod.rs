@@ -3,7 +3,7 @@ pub mod payload;
 pub mod transport;
 
 use payload::Decoder;
-use tracing::info;
+use tracing::{error, info};
 use transport::serial;
 use transport::udp;
 use transport::{Sample, Transport};
@@ -45,13 +45,13 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool, is_dry_run: bool) {
     }
     if !is_dry_run {
         let mut transport = choose_transport_type(is_ref_phot).await;
-        let decoder = choose_decoder_type(is_ref_phot);
+        let mut decoder = choose_decoder_type(is_ref_phot);
         loop {
             let Sample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
             //info!("{raw_bytes:?}");
-            match decoder.decode(&raw_bytes) {
-                Ok(payload) => info!("{tstamp:?} {payload:?}"),
-                Err(_) => (),
+            match decoder.decode(tstamp, &raw_bytes) {
+                Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),
+                Err(e) => error!("{e:?}"),
             }
         }
     }
