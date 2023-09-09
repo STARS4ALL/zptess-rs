@@ -37,12 +37,12 @@ async fn main() {
 
     let pool1 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(pool1, false).await; // pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
     let pool1 = pool.clone();
     tokio::spawn(async move {
-        photometer::task(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
     });
 
     // Nothing to do on the main task,
