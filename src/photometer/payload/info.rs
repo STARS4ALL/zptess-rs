@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 // --
 // This is the decoded, new JSON format payload
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(non_snake_case)]
 pub struct Json {
     pub udp: u32,
@@ -20,7 +20,7 @@ pub struct Json {
 // ---------------------------------------------------
 // This is the old payload captured by the serial line
 // ---------------------------------------------------
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Cristogg {
     pub freq: f32,
     pub tbox: f32,

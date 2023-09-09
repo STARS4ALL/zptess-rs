@@ -5,7 +5,7 @@ use serde_json;
 use std::io::{Error, ErrorKind};
 
 pub struct Decoder {
-    sample: Option<(Timestamp, Json)>,
+    sample: Option<(Timestamp, Json)>, // prev sample to filter out duplicate readinngs
 }
 
 // Ok((tstamp, Payload::Json(info)))
@@ -27,7 +27,7 @@ impl Decoder {
         }
     }
 
-    // Filter duplicated samples
+    // Filter duplicated readings
     fn filter(&mut self, tstamp: Timestamp, reading: Json) -> Option<(Timestamp, Json)> {
         let cur_sample = (tstamp, reading);
         if let Some(prev_sample) = &self.sample {
