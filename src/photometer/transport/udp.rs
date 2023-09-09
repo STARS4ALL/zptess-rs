@@ -1,4 +1,4 @@
-use super::super::super::Timestamp;
+use super::Sample;
 use bytes::BytesMut;
 use chrono::prelude::*;
 use std::io;
@@ -23,7 +23,7 @@ impl Transport {
         })
     }
 
-    pub async fn reading(&mut self) -> Result<(Timestamp, String), io::Error> {
+    pub async fn reading(&mut self) -> Result<Sample, io::Error> {
         let (len, _src) = self.socket.recv_buf_from(&mut self.buffer).await?;
         let tstamp = Utc::now();
         let s = String::from(
@@ -32,6 +32,6 @@ impl Transport {
                 .trim(),
         );
         self.buffer.clear();
-        Ok((tstamp, s))
+        Ok(Sample(tstamp, s))
     }
 }
