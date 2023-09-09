@@ -35,7 +35,7 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
+pub async fn calibrate(pool: Pool, is_ref_phot: bool, is_dry_run: bool) {
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
@@ -43,15 +43,16 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
         let discoverer = http::Discoverer::new("http://192.168.4.1/config");
         let _info = discoverer.discover().await;
     }
-    let mut transport = choose_transport_type(is_ref_phot).await;
-
-    let decoder = choose_decoder_type(is_ref_phot);
-    loop {
-        let (tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
-        //info!("{raw_bytes:?}");
-        match decoder.decode(&raw_bytes) {
-            Ok(payload) => info!("{tstamp:?} {payload:?}"),
-            Err(_) => (),
+    if !is_dry_run {
+        let mut transport = choose_transport_type(is_ref_phot).await;
+        let decoder = choose_decoder_type(is_ref_phot);
+        loop {
+            let (tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
+            //info!("{raw_bytes:?}");
+            match decoder.decode(&raw_bytes) {
+                Ok(payload) => info!("{tstamp:?} {payload:?}"),
+                Err(_) => (),
+            }
         }
     }
 }

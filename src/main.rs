@@ -36,16 +36,16 @@ async fn main() {
     let pool = zptess::database::get_connection_pool(&database_url);
 
     let pool1 = pool.clone();
-    tokio::spawn(async move {
-        photometer::calibrate(pool1, false).await; // pool1 is moved to the task and gets out of scope
+    let ftest = tokio::spawn(async move {
+        photometer::calibrate(pool1, false, true).await; // pool1 is moved to the task and gets out of scope
     });
 
     let pool1 = pool.clone();
-    tokio::spawn(async move {
-        photometer::calibrate(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
+    let fref = tokio::spawn(async move {
+        photometer::calibrate(pool1, true, true).await; // again: pool1 is moved to the task and gets out of scope
     });
-
+    futures::future::join_all(vec![ftest, fref]).await;
     // Nothing to do on the main task,
     // simply waits here
-    signal::ctrl_c().await.expect("Shutdown signal");
+    //signal::ctrl_c().await.expect("Shutdown signal");
 }
