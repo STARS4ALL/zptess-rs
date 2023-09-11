@@ -1,3 +1,4 @@
+use clap::ArgAction::{Append, Count};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
@@ -5,10 +6,10 @@ pub fn parse() -> Cli {
     Cli::parse()
 }
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Turn console debugging information on
+    /// Log to console
     #[arg(short, long)]
     pub console: bool,
 
@@ -16,14 +17,18 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE", default_value = "zptess.log")]
     pub log_file: PathBuf,
 
+    /// Log level, multiple times
+    #[arg(short, long, action = Count)]
+    pub verbose: u8,
+
     #[command(subcommand)]
     pub command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Database migration options
-    Database {},
+    Migrate {},
 
     /// Calibration options
     Calibrate {
@@ -44,39 +49,39 @@ pub enum Commands {
         box_model: String,
 
         /// Author
-        #[arg(short, long, action = clap::ArgAction::Append)]
-        author: Option<String>,
+        #[arg(short, long, action = Append, value_delimiter = ' ', num_args = 1..)]
+        author: Option<Vec<String>>,
 
         #[command(flatten)]
         operation: Operation,
     },
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 #[group(required = true, multiple = false)]
 pub struct Operation {
     /// display photometer info and exit
     #[arg(short, long)]
-    dry_run: bool,
+    pub dry_run: bool,
 
     /// Calibrate and update zero point
     #[arg(short, long)]
-    update: bool,
+    pub update: bool,
 
     /// Overwrites zero point
     #[arg(short, long, value_name = "ZP")]
-    write_zero_point: Option<i32>,
+    pub write_zero_point: Option<f32>,
 
     /// calibrate but don't update database
     #[arg(short, long)]
-    test: bool,
+    pub test: bool,
 
     /// Read photometer
     #[arg(short, long, value_name = "ROLE", value_enum)]
-    read: Option<Role>,
+    pub read: Option<Role>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[clap(rename_all = "kebab-case")]
 pub enum Model {
     /// TESS WiFi model
@@ -89,7 +94,7 @@ pub enum Model {
     TAS,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[clap(rename_all = "lower")]
 pub enum Role {
     /// Test photometer

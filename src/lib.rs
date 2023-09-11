@@ -1,4 +1,3 @@
-pub mod argparse;
 pub mod database;
 pub mod logging;
 pub mod photometer;
