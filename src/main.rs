@@ -1,4 +1,5 @@
 use crate::argparse::{Cli, Commands, Operation};
+use anyhow::Result;
 use tracing::Level;
 use zptess::photometer;
 // Include these modules as part of the binary crate, not the library crate
@@ -25,20 +26,20 @@ struct Cli {
 use tokio::signal;
 use zptess;
 
-#[tokio::main]
-//#[tokio::main(flavor = "current_thread")]
-async fn main() {
+//#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
     let cli = argparse::parse();
 
     let mut g_dry_run = false;
     let mut g_update = false;
     let mut g_test = false;
-    let mut g_write_zp = None;
+    let mut g_write_zp: Option<f32> = None;
     let mut g_migrate = false;
     let mut g_verbose = 0;
     let mut g_author = "".to_string();
 
-    let (g_console, g_log_file, g_verbose) = match &cli {
+    let (g_console, g_log_file, g_verbose) = match cli {
         Cli {
             console,
             log_file,
@@ -76,34 +77,48 @@ async fn main() {
     }
 
     if let Some(zp) = g_write_zp {}
-    /*
-        let level = match g_verbose {
-            0 => Level::ERROR,
-            1 => Level::INFO,
-            _ => Level::DEBUG,
-        };
-    */
+
+    let g_level = match g_verbose {
+        0 => Level::ERROR,
+        1 => Level::INFO,
+        _ => Level::DEBUG,
+    };
+
     // =========================================================================
     // =========================================================================
     // =========================================================================
 
-    let mut _guards = logging::init(Level::INFO, cli.console, Some(cli.log_file));
+    let mut _guards = logging::init(g_level, g_console, Some(g_log_file));
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
+
+    // Just run the possible migration and bail out
+    if g_migrate {
+        return Ok(());
+    }
+
+    if g_dry_run {
+        let fdisc = tokio::spawn(async move {
+            photometer::discover().await; // pool1 is moved to the task and gets out of scope
+        });
+        futures::future::join_all(vec![fdisc]).await;
+        return Ok(());
+    }
 
     let pool = zptess::database::get_connection_pool(&database_url);
 
     let pool1 = pool.clone();
     let ftest = tokio::spawn(async move {
-        photometer::calibrate(pool1, false, false).await; // pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
     let pool1 = pool.clone();
     let fref = tokio::spawn(async move {
-        photometer::calibrate(pool1, true, false).await; // again: pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
     });
     futures::future::join_all(vec![ftest, fref]).await;
     // Nothing to do on the main task,
     // simply waits here
-    signal::ctrl_c().await.expect("Shutdown signal");
+    signal::ctrl_c().await?;
+    return Ok(());
 }

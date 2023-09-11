@@ -2,16 +2,17 @@ pub mod discovery;
 pub mod payload;
 pub mod transport;
 
+use super::database::Pool;
+use anyhow::Result;
+use discovery::database;
+use discovery::http;
 use payload::Decoder;
 use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
 use transport::{RawSample, Transport};
 
-use discovery::database;
-use discovery::http;
-
-use super::database::Pool;
+const CONFIG_URL: &str = "http://192.168.4.1/config";
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
     let decoder = if !is_ref_phot {
@@ -35,24 +36,28 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn calibrate(pool: Pool, is_ref_phot: bool, is_dry_run: bool) {
+pub async fn discover() {
+    let discoverer = http::Discoverer::new(CONFIG_URL);
+    let _info = discoverer.discover().await;
+}
+
+pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
     } else {
-        let discoverer = http::Discoverer::new("http://192.168.4.1/config");
+        let discoverer = http::Discoverer::new(CONFIG_URL);
         let _info = discoverer.discover().await;
     }
-    if !is_dry_run {
-        let mut transport = choose_transport_type(is_ref_phot).await;
-        let mut decoder = choose_decoder_type(is_ref_phot);
-        loop {
-            let RawSample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
-            //info!("{raw_bytes:?}");
-            match decoder.decode(tstamp, &raw_bytes) {
-                Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),
-                Err(e) => debug!("{e:?}"),
-            }
+
+    let mut transport = choose_transport_type(is_ref_phot).await;
+    let mut decoder = choose_decoder_type(is_ref_phot);
+    loop {
+        let RawSample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
+        //info!("{raw_bytes:?}");
+        match decoder.decode(tstamp, &raw_bytes) {
+            Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),
+            Err(e) => debug!("{e:?}"),
         }
     }
 }
