@@ -1,4 +1,5 @@
 use crate::argparse::{Cli, Commands, Operation};
+use crate::zptess::Timestamp;
 use anyhow::Result;
 use chrono::prelude::*;
 use tokio::signal;
@@ -113,8 +114,8 @@ async fn main() -> Result<()> {
     let pool = zptess::database::get_connection_pool(&database_url);
     use zptess::photometer::payload::info::Payload;
 
-    let (tx1, rx1) = mpsc::channel::<Payload>(32);
-    let (tx2, rx2) = mpsc::channel::<Payload>(32);
+    let (tx1, rx1) = mpsc::channel::<(Timestamp, Payload)>(32);
+    let (tx2, rx2) = mpsc::channel::<(Timestamp, Payload)>(32);
 
     let pool1 = pool.clone();
     let _session1 = session.clone(); // To move it to the proper thread
