@@ -41,7 +41,8 @@ pub async fn discover() {
 
 pub async fn write_zero_point(zp: f32) {
     let updater = update::http::Updater::new();
-    updater.update_zp(zp).await;
+    updater.update_zp(zp).await.expect("Writting Zero Point");
+    info!("Updated Zero Point {:.02}", zp);
 }
 
 pub async fn calibrate(pool: Pool, is_ref_phot: bool) {

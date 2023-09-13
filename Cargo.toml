@@ -52,4 +52,5 @@ regex = "1.9.5"
 # Reading TESS-W information from its Web Page
 reqwest = "0.11.20"
 anyhow = "1.0.75"
+thiserror = "1.0.48"
 

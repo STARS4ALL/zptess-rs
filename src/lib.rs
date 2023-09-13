@@ -5,9 +5,7 @@ pub mod photometer;
 use chrono::prelude::*;
 use dotenvy::dotenv;
 use std::env;
-use std::fmt;
 
-// Format timestamps as this
 // let _tstamp = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
 pub type Timestamp = DateTime<Utc>;
 
