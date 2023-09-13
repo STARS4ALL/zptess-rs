@@ -4,8 +4,9 @@ pub mod transport;
 pub mod update;
 
 use super::database::Pool;
-use discovery::database;
-use discovery::http;
+use anyhow::Result;
+
+use discovery::{database, Info};
 use payload::Decoder;
 use tracing::{debug, info};
 use transport::serial;
@@ -34,15 +35,14 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn discover() {
-    let discoverer = http::Discoverer::new();
-    let _info = discoverer.discover().await;
+pub async fn discover() -> Result<Info> {
+    discovery::http::Discoverer::new().discover().await
 }
 
-pub async fn write_zero_point(zp: f32) {
-    let updater = update::http::Updater::new();
-    updater.update_zp(zp).await.expect("Writting Zero Point");
+pub async fn write_zero_point(zp: f32) -> Result<()> {
+    update::http::Updater::new().update_zp(zp).await?;
     info!("Updated Zero Point {:.02}", zp);
+    Ok(())
 }
 
 pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
@@ -50,7 +50,7 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
     } else {
-        let discoverer = http::Discoverer::new();
+        let discoverer = discovery::http::Discoverer::new();
         let _info = discoverer.discover().await;
     }
 

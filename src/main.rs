@@ -37,7 +37,6 @@ async fn main() -> Result<()> {
     let mut g_test = false;
     let mut g_write_zp: Option<f32> = None;
     let mut g_migrate = false;
-    let mut g_verbose = 0;
     let mut g_author = "".to_string();
 
     let (g_console, g_log_file, g_verbose) = match cli {
@@ -47,6 +46,12 @@ async fn main() -> Result<()> {
             verbose,
             ..
         } => (console, log_file, verbose),
+    };
+
+    let g_level = match g_verbose {
+        0 => Level::ERROR,
+        1 => Level::INFO,
+        _ => Level::DEBUG,
     };
 
     match cli.command {
@@ -77,12 +82,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    let g_level = match g_verbose {
-        0 => Level::ERROR,
-        1 => Level::INFO,
-        _ => Level::DEBUG,
-    };
-
     // =========================================================================
     // =========================================================================
     // =========================================================================
@@ -100,15 +99,13 @@ async fn main() -> Result<()> {
 
     // Write ZP and bail out
     if let Some(zp) = g_write_zp {
-        photometer::write_zero_point(zp).await;
+        photometer::write_zero_point(zp).await?;
         return Ok(());
     }
 
+    // Display photometer info and bail out
     if g_dry_run {
-        let fdisc = tokio::spawn(async move {
-            photometer::discover().await; // pool1 is moved to the task and gets out of scope
-        });
-        futures::future::join_all(vec![fdisc]).await;
+        photometer::discover().await?;
         return Ok(());
     }
 

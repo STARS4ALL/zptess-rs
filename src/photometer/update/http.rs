@@ -1,4 +1,4 @@
-use anyhow;
+use anyhow::{bail, ensure, Result};
 use regex::Regex;
 use std::time::Duration;
 
@@ -18,7 +18,7 @@ impl Updater {
         }
     }
 
-    pub async fn update_zp(&self, zp: f32) -> Result<(), anyhow::Error> {
+    pub async fn update_zp(&self, zp: f32) -> Result<()> {
         let param1 = vec![("nZP1", format!("{zp:.02}"))];
         let param2 = vec![("cons", format!("{zp:.02}"))];
         let client = reqwest::Client::builder()
@@ -31,7 +31,7 @@ impl Updater {
         Ok(())
     }
 
-    async fn verify(&self, written_zp: f32) -> Result<(), anyhow::Error> {
+    async fn verify(&self, written_zp: f32) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::new(3, 0))
             .build()?;
@@ -40,15 +40,14 @@ impl Updater {
         let read_zp = if let Some(result) = self.re.captures(&body) {
             result[2].trim().parse::<f32>()?
         } else {
-            anyhow::bail!("Parsing TESS-W HTML page");
+            bail!("Parsing TESS-W HTML page");
         };
-        if read_zp != written_zp {
-            anyhow::bail!(
-                "Read ZP ({:.02}) doesn't match written ZP ({:02})",
-                read_zp,
-                written_zp
-            );
-        }
+        ensure!(
+            read_zp == written_zp,
+            "Read ZP ({:.02}) doesn't match written ZP ({:.02})",
+            read_zp,
+            written_zp
+        );
         Ok(())
     }
 }

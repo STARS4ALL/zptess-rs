@@ -1,7 +1,7 @@
 use super::Info;
+use anyhow::Result;
 use regex::Regex;
 use reqwest;
-use std::io::Error;
 use std::time::Duration;
 use tracing::info;
 
@@ -38,7 +38,7 @@ impl Discoverer {
         }
     }
 
-    fn decode(&self, body: &str) -> Result<Info, Error> {
+    fn decode(&self, body: &str) -> Result<Info> {
         let mut info = Info::new();
         for (i, re) in self.re.iter().enumerate() {
             if let Some(result) = re.captures(body) {
@@ -46,8 +46,8 @@ impl Discoverer {
                     0 => info.name = result[1].to_string(),
                     1 => info.mac = result[1].to_string(),
                     2 => info.firmware = result[1].to_string(),
-                    3 => info.zp = result[2].trim().parse::<f32>().expect("ZP"),
-                    4 => info.freq_offset = result[1].trim().parse::<f32>().expect("ZP"),
+                    3 => info.zp = result[2].trim().parse::<f32>()?,
+                    4 => info.freq_offset = result[1].trim().parse::<f32>()?,
                     _ => unimplemented!(),
                 }
             }
@@ -56,7 +56,7 @@ impl Discoverer {
         Ok(info)
     }
 
-    async fn fetch(&self) -> Result<String, reqwest::Error> {
+    async fn fetch(&self) -> Result<String> {
         let client = reqwest::Client::builder()
             .timeout(Duration::new(3, 0))
             .build()?;
@@ -64,8 +64,8 @@ impl Discoverer {
         Ok(body)
     }
 
-    pub async fn discover(&self) -> Info {
-        let body = self.fetch().await.expect("Fetching photometer URL");
-        self.decode(&body).expect("Decoding HTML")
+    pub async fn discover(&self) -> Result<Info> {
+        let body = self.fetch().await?;
+        self.decode(&body)
     }
 }
