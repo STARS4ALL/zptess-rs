@@ -1,8 +1,12 @@
 use crate::argparse::{Cli, Commands, Operation};
 use anyhow::Result;
 use chrono::prelude::*;
+use tokio::signal;
+use tokio::sync::mpsc;
 use tracing::Level;
-use zptess::photometer;
+use zptess;
+use zptess::{photometer, statistics};
+
 // Include these modules as part of the binary crate, not the library crate
 // as this contains the actual implementation of the logging facility
 mod argparse;
@@ -23,9 +27,6 @@ struct Cli {
 }
 
 */
-
-use tokio::signal;
-use zptess;
 
 //#[tokio::main]
 #[tokio::main(flavor = "current_thread")]
@@ -110,18 +111,33 @@ async fn main() -> Result<()> {
     }
 
     let pool = zptess::database::get_connection_pool(&database_url);
+    use zptess::photometer::payload::info::Payload;
+
+    let (tx1, rx1) = mpsc::channel::<Payload>(32);
+    let (tx2, rx2) = mpsc::channel::<Payload>(32);
 
     let pool1 = pool.clone();
     let _session1 = session.clone(); // To move it to the proper thread
     let ftest = tokio::spawn(async move {
-        photometer::calibrate(pool1, false).await; // pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool1, tx1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
-    let pool1 = pool.clone();
+    let pool2 = pool.clone();
     let fref = tokio::spawn(async move {
-        photometer::calibrate(pool1, true).await; // again: pool1 is moved to the task and gets out of scope
+        photometer::calibrate(pool2, tx2, true).await; // again: pool1 is moved to the task and gets out of scope
     });
-    futures::future::join_all(vec![ftest, fref]).await;
+
+    let pool3 = pool.clone();
+    let sref = tokio::spawn(async move {
+        statistics::collect(pool3, rx1, true).await; // again: pool1 is moved to the task and gets out of scope
+    });
+
+    let pool4 = pool.clone();
+    let stest = tokio::spawn(async move {
+        statistics::collect(pool4, rx2, true).await; // again: pool1 is moved to the task and gets out of scope
+    });
+
+    futures::future::join_all(vec![ftest, fref, sref, stest]).await;
     // Nothing to do on the main task,
     // simply waits here
     signal::ctrl_c().await?;

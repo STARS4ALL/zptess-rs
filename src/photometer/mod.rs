@@ -7,11 +7,14 @@ use super::database::Pool;
 use anyhow::Result;
 
 use discovery::{database, Info};
+use payload::info::Payload;
 use payload::Decoder;
 use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
 use transport::{RawSample, Transport};
+
+use tokio::sync::mpsc::Sender;
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
     let decoder = if !is_ref_phot {
@@ -45,7 +48,7 @@ pub async fn write_zero_point(zp: f32) -> Result<()> {
     Ok(())
 }
 
-pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
+pub async fn calibrate(pool: Pool, chan: Sender<Payload>, is_ref_phot: bool) {
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
@@ -60,7 +63,10 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
         let RawSample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
         //info!("{raw_bytes:?}");
         match decoder.decode(tstamp, &raw_bytes) {
-            Ok((tstamp, payload)) => info!("{tstamp:?} {payload:?}"),
+            Ok((_tstamp, payload)) => {
+                info!("{payload:?}");
+                chan.send(payload).await.expect("Sending Payloads");
+            }
             Err(e) => debug!("{e:?}"),
         }
     }

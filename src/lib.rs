@@ -1,6 +1,7 @@
 pub mod database;
 pub mod logging;
 pub mod photometer;
+pub mod statistics;
 
 use chrono::prelude::*;
 use dotenvy::dotenv;
