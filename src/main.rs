@@ -1,5 +1,6 @@
 use crate::argparse::{Cli, Commands, Operation};
 use anyhow::Result;
+use chrono::prelude::*;
 use tracing::Level;
 use zptess::photometer;
 // Include these modules as part of the binary crate, not the library crate
@@ -76,8 +77,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    if let Some(zp) = g_write_zp {}
-
     let g_level = match g_verbose {
         0 => Level::ERROR,
         1 => Level::INFO,
@@ -92,8 +91,16 @@ async fn main() -> Result<()> {
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
 
+    let session = Utc::now();
+
     // Just run the possible migration and bail out
     if g_migrate {
+        return Ok(());
+    }
+
+    // Write ZP and bail out
+    if let Some(zp) = g_write_zp {
+        photometer::write_zero_point(zp).await;
         return Ok(());
     }
 
@@ -108,6 +115,7 @@ async fn main() -> Result<()> {
     let pool = zptess::database::get_connection_pool(&database_url);
 
     let pool1 = pool.clone();
+    let _session1 = session.clone(); // To move it to the proper thread
     let ftest = tokio::spawn(async move {
         photometer::calibrate(pool1, false).await; // pool1 is moved to the task and gets out of scope
     });

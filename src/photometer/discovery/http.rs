@@ -10,17 +10,24 @@ const MAC: &str = r"MAC: ([0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-
 const ZP: &str = r"(ZP|CI.*): (\d{1,2}\.\d{1,2})";
 const FIRMWARE: &str = r"Compiled: (.+?)<br>";
 const FREQ_OFF: &str = r"Offset Hz: (\d{1,3}\.\d{1,3})<br>";
+const URL_GET_INFO: &str = "http://192.168.4.1/config";
+
+/*
+ let mut owned_string: String = "hello ".to_owned();
+    let another_owned_string: String = "world".to_owned();
+
+    owned_string.push_str(&another_owned_string);
+    println!("{}", owned_string);
+*/
 
 #[derive(Debug)]
 pub struct Discoverer {
-    url: String,
     re: Vec<Regex>,
 }
 
 impl Discoverer {
-    pub fn new(url: &str) -> Self {
+    pub fn new() -> Self {
         Self {
-            url: url.into(),
             re: vec![
                 Regex::new(NAME).unwrap(),
                 Regex::new(MAC).unwrap(),
@@ -49,19 +56,16 @@ impl Discoverer {
         Ok(info)
     }
 
-    async fn fetch(&self, url: &str) -> Result<String, reqwest::Error> {
+    async fn fetch(&self) -> Result<String, reqwest::Error> {
         let client = reqwest::Client::builder()
             .timeout(Duration::new(3, 0))
             .build()?;
-        let body = client.get(url).send().await?.text().await?;
+        let body = client.get(URL_GET_INFO).send().await?.text().await?;
         Ok(body)
     }
 
     pub async fn discover(&self) -> Info {
-        let body = self
-            .fetch(&self.url)
-            .await
-            .expect("Fetching photometer URL");
+        let body = self.fetch().await.expect("Fetching photometer URL");
         self.decode(&body).expect("Decoding HTML")
     }
 }

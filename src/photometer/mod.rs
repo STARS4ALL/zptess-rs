@@ -1,9 +1,9 @@
 pub mod discovery;
 pub mod payload;
 pub mod transport;
+pub mod update;
 
 use super::database::Pool;
-use anyhow::Result;
 use discovery::database;
 use discovery::http;
 use payload::Decoder;
@@ -11,8 +11,6 @@ use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
 use transport::{RawSample, Transport};
-
-const CONFIG_URL: &str = "http://192.168.4.1/config";
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
     let decoder = if !is_ref_phot {
@@ -37,8 +35,13 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
 }
 
 pub async fn discover() {
-    let discoverer = http::Discoverer::new(CONFIG_URL);
+    let discoverer = http::Discoverer::new();
     let _info = discoverer.discover().await;
+}
+
+pub async fn write_zero_point(zp: f32) {
+    let updater = update::http::Updater::new();
+    updater.update_zp(zp).await;
 }
 
 pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
@@ -46,7 +49,7 @@ pub async fn calibrate(pool: Pool, is_ref_phot: bool) {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
     } else {
-        let discoverer = http::Discoverer::new(CONFIG_URL);
+        let discoverer = http::Discoverer::new();
         let _info = discoverer.discover().await;
     }
 
