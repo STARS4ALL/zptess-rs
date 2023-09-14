@@ -48,7 +48,7 @@ pub async fn write_zero_point(zp: f32) -> Result<()> {
     Ok(())
 }
 
-pub async fn calibrate(pool: Pool, chan: Sender<(Timestamp, Payload)>, is_ref_phot: bool) {
+pub async fn calibrate_task(pool: Pool, chan: Sender<(Timestamp, Payload)>, is_ref_phot: bool) {
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
