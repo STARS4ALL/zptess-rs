@@ -30,7 +30,6 @@ impl<'a> Discoverer<'a> {
             task::spawn_blocking(move || sql.load(&mut conn1).expect("Error loading config"))
                 .await
                 .expect("Exec discovery SQL");
-        debug!("{:?}", results);
 
         let mut info = Info::new();
         for item in results.iter() {

@@ -64,7 +64,6 @@ pub async fn calibrate(pool: Pool, chan: Sender<(Timestamp, Payload)>, is_ref_ph
         //info!("{raw_bytes:?}");
         match decoder.decode(tstamp, &raw_bytes) {
             Ok((tstamp, payload)) => {
-                info!("{payload:?}");
                 chan.send((tstamp, payload))
                     .await
                     .expect("Sending Payloads");
