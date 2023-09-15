@@ -50,15 +50,18 @@ pub async fn write_zero_point(zp: f32) -> Result<()> {
 
 pub async fn calibrate_task(
     pool: Pool,
-    chan: Sender<(Timestamp, Payload)>,
+    chan: Sender<(Timestamp, Payload, String)>,
     is_ref_phot: bool,
 ) -> Result<()> {
+    let name: String;
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
-        let _info = discoverer.discover().await;
+        let info = discoverer.discover().await?;
+        name = info.name;
     } else {
         let discoverer = discovery::http::Discoverer::new();
-        let _info = discoverer.discover().await;
+        let info = discoverer.discover().await?;
+        name = info.name;
     }
 
     let mut transport = choose_transport_type(is_ref_phot).await;
@@ -67,7 +70,7 @@ pub async fn calibrate_task(
         let RawSample(tstamp, raw_bytes) = transport.reading().await?;
         //info!("{raw_bytes:?}");
         match decoder.decode(tstamp, &raw_bytes) {
-            Ok((tstamp, payload)) => match chan.send((tstamp, payload)).await {
+            Ok((tstamp, payload)) => match chan.send((tstamp, payload, name.clone())).await {
                 Ok(_) => {}
                 Err(_) => {
                     break;

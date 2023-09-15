@@ -28,7 +28,7 @@ pub struct Cristogg {
     pub zp: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Payload {
     Json(Json),
     Cristogg(Cristogg),

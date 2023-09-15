@@ -1,5 +1,6 @@
 use super::super::super::database::{models::Config, Db, Pool};
 use super::Info;
+use anyhow::Result;
 use diesel::prelude::*;
 use tokio::task;
 use tracing::{debug, error, info};
@@ -13,7 +14,7 @@ impl<'a> Discoverer<'a> {
         Self { pool }
     }
 
-    pub async fn discover(&self) -> Info {
+    pub async fn discover(&self) -> Result<Info> {
         use super::super::super::database::schema::config_t::dsl::*;
         let sql = config_t
             .filter(section.eq("ref-device"))
@@ -22,14 +23,10 @@ impl<'a> Discoverer<'a> {
             .select(Config::as_select());
 
         debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
-        let mut conn1 = self
-            .pool
-            .get()
-            .expect("Getting Db conn when loading config");
+        let mut conn1 = self.pool.get()?;
         let results =
             task::spawn_blocking(move || sql.load(&mut conn1).expect("Error loading config"))
-                .await
-                .expect("Exec discovery SQL");
+                .await?;
 
         let mut info = Info::new();
         for item in results.iter() {
@@ -45,6 +42,6 @@ impl<'a> Discoverer<'a> {
             }
         }
         info!("From database: {:#?}", info);
-        info
+        Ok(info)
     }
 }
