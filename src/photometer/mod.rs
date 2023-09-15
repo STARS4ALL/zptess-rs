@@ -48,7 +48,11 @@ pub async fn write_zero_point(zp: f32) -> Result<()> {
     Ok(())
 }
 
-pub async fn calibrate_task(pool: Pool, chan: Sender<(Timestamp, Payload)>, is_ref_phot: bool) {
+pub async fn calibrate_task(
+    pool: Pool,
+    chan: Sender<(Timestamp, Payload)>,
+    is_ref_phot: bool,
+) -> Result<()> {
     if is_ref_phot {
         let discoverer = database::Discoverer::new(&pool);
         let _info = discoverer.discover().await;
@@ -60,15 +64,23 @@ pub async fn calibrate_task(pool: Pool, chan: Sender<(Timestamp, Payload)>, is_r
     let mut transport = choose_transport_type(is_ref_phot).await;
     let mut decoder = choose_decoder_type(is_ref_phot);
     loop {
-        let RawSample(tstamp, raw_bytes) = transport.reading().await.expect("Reading task");
+        let RawSample(tstamp, raw_bytes) = transport.reading().await?;
         //info!("{raw_bytes:?}");
         match decoder.decode(tstamp, &raw_bytes) {
-            Ok((tstamp, payload)) => {
-                chan.send((tstamp, payload))
-                    .await
-                    .expect("Sending Payloads");
-            }
+            Ok((tstamp, payload)) => match chan.send((tstamp, payload)).await {
+                Ok(_) => {}
+                Err(_) => {
+                    break;
+                }
+            },
             Err(e) => debug!("{e:?}"),
         }
     }
+    if is_ref_phot {
+        info!("Ref. Photometer task finished");
+    } else {
+        info!("Test Photometer task finished");
+    }
+
+    Ok(())
 }

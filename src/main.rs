@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::prelude::*;
 use tokio::signal;
 use tokio::sync::mpsc;
-use tracing::Level;
+use tracing::{info, Level};
 use zptess;
 use zptess::{photometer, statistics};
 
@@ -129,10 +129,11 @@ async fn main() -> Result<()> {
 
     let pool3 = pool.clone();
     let stats = tokio::spawn(async move {
-        statistics::collect_task(pool3, rx, 75).await; // again: pool1 is moved to the task and gets out of scope
+        statistics::collect_task(pool3, rx, 25, 5).await; // again: pool1 is moved to the task and gets out of scope
     });
 
     futures::future::join_all(vec![ftest, fref, stats]).await;
+    info!("All tasks terminated");
     // Nothing to do on the main task,
     // simply waits here
     signal::ctrl_c().await?;
