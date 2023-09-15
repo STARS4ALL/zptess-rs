@@ -13,113 +13,123 @@ const TEST_LABEL: &str = "TEST";
 type Sample = (Timestamp, Payload);
 type SampleQueue = VecDeque<Sample>;
 
-fn possibly_enqueue(
-    queue: &mut SampleQueue,
-    t: Timestamp,
-    p: Payload,
-    is_ref: bool,
-    is_measuring: bool,
-) -> bool {
-    let label = if is_ref { REF_LABEL } else { TEST_LABEL };
-
-    // let the queue grow and grow so we can save all samples
-    if is_measuring {
-        queue.push_back((t, p));
-        return true;
-    }
-    let length = queue.len();
-    let capacity = queue.capacity();
-    let mut result = false;
-
-    if length < capacity {
-        queue.push_back((t, p));
-    } else {
-        queue.pop_front();
-        queue.push_back((t, p));
-
-        result = true;
-    }
-    info!(
-        "[{}] Waiting for enough samples, {} remaining",
-        label,
-        capacity - length
-    );
-    return result;
+pub struct Statistics {
+    ref_q: SampleQueue,
+    test_q: SampleQueue,
+    window: usize,
+    ref_flag: bool,
+    test_flag: bool,
+    glob_flag: bool,
+    nrounds: usize,
+    round: usize,
+    channel: Receiver<Sample>,
 }
 
-pub struct GlobalState {
-    pub ref_q: SampleQueue,
-    pub test_q: SampleQueue,
-    pub ref_flag: bool,
-    pub test_flag: bool,
-    pub glob_flag: bool,
-}
-
-impl GlobalState {
-    fn new(capacity: usize) -> Self {
+impl Statistics {
+    fn new(window: usize, mut channel: Receiver<Sample>, nrounds: usize) -> Self {
         Self {
-            ref_q: SampleQueue::with_capacity(capacity),
-            test_q: SampleQueue::with_capacity(capacity),
+            ref_q: SampleQueue::with_capacity(window),
+            test_q: SampleQueue::with_capacity(window),
+            window,
             ref_flag: false,
             test_flag: false,
             glob_flag: false,
+            nrounds,
+            round: 1,
+            channel, // Take ownership of the receiver end of the channel
         }
     }
-}
 
-pub async fn one_round(round: usize, chan: &mut Receiver<Sample>, mut state: &mut GlobalState) {
-    while let Some(message) = chan.recv().await {
-        match message {
-            (tstamp, Payload::Json(payload)) => {
-                state.test_flag = possibly_enqueue(
-                    &mut state.test_q,
-                    tstamp,
-                    Payload::Json(payload),
-                    false,
-                    state.glob_flag,
-                );
-                state.glob_flag = state.test_flag && state.ref_flag;
-            }
+    fn calculate(&self) {
+        info!("==== Calculating statistics for round {} ====", self.round);
+        info!("REF  Q LEN = {:?}", self.ref_q.len());
+        info!("TEST Q LEN = {:?}", self.test_q.len());
+    }
 
-            (tstamp, Payload::Cristogg(payload)) => {
-                state.ref_flag = possibly_enqueue(
-                    &mut state.ref_q,
-                    tstamp,
-                    Payload::Cristogg(payload),
-                    true,
-                    state.glob_flag,
-                );
-                state.glob_flag = state.test_flag && state.ref_flag;
+    async fn one_round(&mut self, round: usize) {
+        self.round = round;
+        while let Some(message) = self.channel.recv().await {
+            match message {
+                (tstamp, Payload::Json(payload)) => {
+                    self.possibly_enqueue_test(tstamp, Payload::Json(payload), self.glob_flag);
+                    self.glob_flag = self.test_flag && self.ref_flag;
+                }
+
+                (tstamp, Payload::Cristogg(payload)) => {
+                    self.possibly_enqueue_ref(tstamp, Payload::Cristogg(payload), self.glob_flag);
+                    self.glob_flag = self.test_flag && self.ref_flag;
+                }
             }
-        }
-        if state.glob_flag {
-            state.ref_q.make_contiguous();
-            state.test_q.make_contiguous();
-            calculate_stats(&mut state, round);
-            break;
+            if self.glob_flag {
+                self.ref_q.make_contiguous();
+                self.test_q.make_contiguous();
+                self.calculate();
+                break;
+            }
         }
     }
-}
 
-fn calculate_stats(state: &mut GlobalState, round: usize) {
-    info!("==== Calculating statistics for round {round} ====");
-    //info!("REF  SLICES = {:?}", state.ref_q.as_slices());
-    //info!("TEST SLICES = {:?}", state.test_q.as_slices());
+    fn possibly_enqueue_test(&mut self, t: Timestamp, p: Payload, is_measuring: bool) {
+        let label = TEST_LABEL;
+        // let the queue grow and grow so we can save all samples
+        if is_measuring {
+            self.test_q.push_back((t, p));
+            return;
+        }
+        let length = self.test_q.len();
+        let capacity = self.test_q.capacity();
+        if length < capacity {
+            self.test_q.push_back((t, p));
+            self.test_flag = false;
+        } else {
+            self.test_q.pop_front();
+            self.test_q.push_back((t, p));
+            self.test_flag = true;
+        }
+        info!(
+            "[{}] Waiting for enough samples, {} remaining",
+            label,
+            capacity - length
+        );
+    }
 
-    info!("REF  Q LEN = {:?}", state.ref_q.len());
-    info!("TEST Q LEN = {:?}", state.test_q.len());
+    fn possibly_enqueue_ref(&mut self, t: Timestamp, p: Payload, is_measuring: bool) {
+        let label = REF_LABEL;
+        // let the queue grow and grow so we can save all samples
+        if is_measuring {
+            self.ref_q.push_back((t, p));
+            return;
+        }
+        let length = self.ref_q.len();
+        let capacity = self.ref_q.capacity();
+
+        if length < capacity {
+            self.ref_q.push_back((t, p));
+            self.ref_flag = false;
+        } else {
+            self.ref_q.pop_front();
+            self.ref_q.push_back((t, p));
+            self.ref_flag = true;
+        }
+        info!(
+            "[{}] Waiting for enough samples, {} remaining",
+            label,
+            capacity - length
+        );
+    }
 }
 
 pub async fn collect_task(
     _pool: Pool,
-    mut chan: Receiver<Sample>,
+    chan: Receiver<Sample>,
     capacity: usize,
     n: usize,
 ) -> Result<()> {
-    let mut state = GlobalState::new(capacity);
+    let mut state = Statistics::new(capacity, chan, n);
     for i in 1..=n {
         sleep(Duration::from_millis(5000)).await;
-        one_round(i, &mut chan, &mut state).await;
+        //one_round(i, &mut chan, &mut state).await;
+        state.one_round(i).await;
         info!("==== Calibration round {i} done ====");
     }
     info!("Statistics task finished");
