@@ -3,7 +3,6 @@ use anyhow::Result;
 use regex::Regex;
 use reqwest;
 use std::time::Duration;
-use tracing::info;
 
 const NAME: &str = r"(stars\d+)";
 const MAC: &str = r"MAC: ([0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2}:[0-9A-Fa-f]{1,2})";

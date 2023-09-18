@@ -1,8 +1,9 @@
 // JSON parsing stuff
 use super::super::super::Timestamp;
-use super::payload::{Json, Payload};
+use super::{Json, Payload};
+use anyhow::{bail, Result};
 use serde_json;
-use std::io::{Error, ErrorKind};
+use tracing::debug;
 
 pub struct Decoder {
     sample: Option<(Timestamp, Json)>, // prev sample to filter out duplicate readinngs
@@ -15,15 +16,15 @@ impl Decoder {
         Self { sample: None }
     }
 
-    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload), Error> {
+    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload)> {
         if let Ok(info) = serde_json::from_str(line) {
             if let Some((t, p)) = self.filter(tstamp, info) {
                 Ok((t, Payload::Json(p)))
             } else {
-                Err(Error::new(ErrorKind::Other, "duplicate JSON payload"))
+                bail!("duplicate JSON payload")
             }
         } else {
-            Err(Error::new(ErrorKind::Other, "invalid JSON decodification"))
+            bail!("invalid JSON Decodification")
         }
     }
 
@@ -36,6 +37,7 @@ impl Decoder {
                 self.sample = Some(cur_sample);
                 result
             } else {
+                debug!("Discarding duplicate JSON reading {cur_sample:?}");
                 self.sample = Some(cur_sample); // duplicate reading
                 None
             }

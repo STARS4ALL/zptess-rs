@@ -1,24 +1,23 @@
 // Cristobal Garcia's old way to deliver readings
 use super::super::super::Timestamp;
-use super::payload::{Cristogg, Payload};
+use super::{Cristogg, Payload};
+use anyhow::{bail, Result};
 use regex::Regex;
-use std::io::{Error, ErrorKind};
+use tracing::debug;
 
-// <fH 00430><tA +2945><tO +2439><mZ -0000>
-// <fm 15686><tA +3255><tO +3121><mZ -0000>
 const HERTZ: &str = r"^<fH([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
 const MILLIHERTZ: &str = r"^<fm([ +]\d{5})><tA ([+-]\d{4})><tO ([+-]\d{4})><mZ ([+-]\d{4})>";
 
 #[derive(Debug)]
 pub struct Decoder {
-    re: Vec<Regex>,
+    re: [Regex; 2],
     sample: Option<(Timestamp, Cristogg)>, // prev sample to filter out duplicate readinngs
 }
 
 impl Decoder {
     pub fn new() -> Self {
         Self {
-            re: vec![
+            re: [
                 Regex::new(HERTZ).expect("Failed pattern"),
                 Regex::new(MILLIHERTZ).expect("Failed pattern"),
             ],
@@ -26,27 +25,30 @@ impl Decoder {
         }
     }
 
-    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload), Error> {
+    pub fn decode(&mut self, tstamp: Timestamp, line: &str) -> Result<(Timestamp, Payload)> {
+        if let Some(cristogg) = self.matches(line) {
+            if let Some((t, p)) = self.filter(tstamp, cristogg) {
+                return Ok((t, Payload::Cristogg(p)));
+            }
+        } else {
+            bail!("Empty Cristogg line")
+        }
+        bail!("Error decoding Cristogg payload")
+    }
+
+    pub fn matches(&self, line: &str) -> Option<Cristogg> {
         for re in self.re.iter() {
             if let Some(result) = re.captures(line) {
-                let cur_payload = Cristogg {
+                let cristogg = Cristogg {
                     freq: result[1].trim().parse::<f32>().expect("Frequency") / 1000.0,
                     zp: result[4].trim().parse::<f32>().expect("ZP"),
                     tbox: result[2].trim().parse::<f32>().expect("Temp Box") / 100.0,
                     tsky: result[3].trim().parse::<f32>().expect("Temp Sky") / 100.0,
                 };
-                if let Some((t, p)) = self.filter(tstamp, cur_payload) {
-                    return Ok((t, Payload::Cristogg(p)));
-                } else {
-                    return Err(Error::new(ErrorKind::Other, "duplicate Cristogg payload"));
-                }
-            } else {
-                if line == "" {
-                    return Err(Error::new(ErrorKind::Other, "empty Cristogg line"));
-                }
+                return Some(cristogg);
             }
         }
-        Err(Error::new(ErrorKind::Other, "invalid Cristogg payload"))
+        None
     }
 
     // Filter duplicated readings
@@ -58,6 +60,7 @@ impl Decoder {
                 && prev_sample.1.tbox == cur_sample.1.tbox
             {
                 // duplicate reading, update and signal we have nothing
+                debug!("Discarding duplicate Cristogg reading {cur_sample:?}");
                 self.sample = Some(cur_sample);
                 None
             } else {

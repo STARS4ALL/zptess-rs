@@ -1,11 +1,12 @@
 use crate::argparse::{Cli, Commands, Operation};
-use crate::zptess::Timestamp;
 use anyhow::Result;
 use chrono::prelude::*;
 use tokio::signal;
 use tokio::sync::mpsc;
 use tracing::{info, Level};
 use zptess;
+use zptess::photometer::payload::Payload;
+use zptess::Timestamp;
 use zptess::{photometer, statistics};
 
 // Include these modules as part of the binary crate, not the library crate
@@ -115,8 +116,6 @@ async fn main() -> Result<()> {
 
     let ref_info = photometer::discover_ref(&pool).await?;
     info!("{ref_info:#?}");
-
-    use zptess::photometer::payload::payload::Payload;
 
     let (tx1, rx) = mpsc::channel::<(Timestamp, Payload)>(32);
     let tx2 = tx1.clone();
