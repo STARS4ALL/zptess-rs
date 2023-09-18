@@ -50,7 +50,7 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn discover_test() -> Result<Info> {
+pub async fn discover_test(_model: Model) -> Result<Info> {
     discovery::http::Discoverer::new().discover().await
 }
 

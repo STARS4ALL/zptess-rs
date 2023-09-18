@@ -70,25 +70,29 @@ async fn main() -> Result<()> {
             author,
             operation,
             ..
-        } => match operation {
-            Operation {
-                dry_run,
-                update,
-                test,
-            } => {
-                let test_info = photometer::discover_test().await?;
-                info!("{test_info:#?}");
-                // Display photometer info and bail out
-                if dry_run {
-                    return Ok(());
-                }
+        } => {
+            g_model = model;
+            match operation {
+                Operation {
+                    dry_run,
+                    update,
+                    test,
+                } => {
+                    let test_info = photometer::discover_test(model).await?;
+                    info!("{test_info:#?}");
+                    // Display photometer info and bail out
+                    if dry_run {
+                        return Ok(());
+                    }
 
-                g_update = update;
-                if let Some(a) = author {
-                    g_author = a.join(" ");
+                    g_update = update;
+                    if let Some(a) = author {
+                        g_author = a.join(" ");
+                    }
                 }
             }
-        },
+        }
+
         Commands::Migrate {} => {
             return Ok(());
         }
@@ -107,8 +111,7 @@ async fn main() -> Result<()> {
     // =========================================================================
     // =========================================================================
     // =========================================================================
-
-    let test_info = photometer::discover_test().await?;
+    let test_info = photometer::discover_test(g_model).await?;
     info!("{test_info:#?}");
 
     let ref_info = photometer::discover_ref(&pool).await?;
