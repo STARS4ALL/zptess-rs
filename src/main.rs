@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
     let ref_info = photometer::discover_ref(&pool).await?;
     info!("{ref_info:#?}");
 
-    use zptess::photometer::payload::info::Payload;
+    use zptess::photometer::payload::payload::Payload;
 
     let (tx1, rx) = mpsc::channel::<(Timestamp, Payload)>(32);
     let tx2 = tx1.clone();

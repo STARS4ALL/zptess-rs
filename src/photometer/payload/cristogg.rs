@@ -1,6 +1,6 @@
 // Cristobal Garcia's old way to deliver readings
 use super::super::super::Timestamp;
-use super::info::{Cristogg, Payload};
+use super::payload::{Cristogg, Payload};
 use regex::Regex;
 use std::io::{Error, ErrorKind};
 

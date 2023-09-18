@@ -1,9 +1,9 @@
 pub mod cristogg;
-pub mod info;
 pub mod json;
+pub mod payload;
 
 use super::super::Timestamp;
-use info::Payload;
+use payload::Payload;
 use std::io::Error;
 
 pub enum Decoder {

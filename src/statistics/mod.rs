@@ -1,6 +1,6 @@
 use super::database::Pool;
 use super::photometer::discovery::Info;
-use super::photometer::payload::info::Payload;
+use super::photometer::payload::payload::Payload;
 use super::{Sample, Timestamp};
 use anyhow::Result;
 use statistical::{median, standard_deviation};

@@ -52,7 +52,6 @@ impl Discoverer {
                 }
             }
         }
-
         Ok(info)
     }
 

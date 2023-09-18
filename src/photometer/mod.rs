@@ -4,11 +4,9 @@ pub mod transport;
 pub mod update;
 
 use super::database::Pool;
+use super::Sample;
 use anyhow::Result;
-
-use super::{Sample, Timestamp};
 use discovery::Info;
-use payload::info::Payload;
 use payload::Decoder;
 use tokio::sync::mpsc::Sender;
 use tracing::{debug, info};

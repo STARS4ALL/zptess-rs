@@ -1,6 +1,6 @@
 // JSON parsing stuff
 use super::super::super::Timestamp;
-use super::info::{Json, Payload};
+use super::payload::{Json, Payload};
 use serde_json;
 use std::io::{Error, ErrorKind};
 
