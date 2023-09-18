@@ -35,7 +35,6 @@ struct Cli {
 async fn main() -> Result<()> {
     let cli = argparse::parse();
 
-    let mut g_dry_run = false;
     let mut g_update = false;
     let mut g_test = false;
     let g_model;
@@ -77,7 +76,13 @@ async fn main() -> Result<()> {
                 update,
                 test,
             } => {
-                g_dry_run = dry_run;
+                let test_info = photometer::discover_test().await?;
+                info!("{test_info:#?}");
+                // Display photometer info and bail out
+                if dry_run {
+                    return Ok(());
+                }
+
                 g_update = update;
                 if let Some(a) = author {
                     g_author = a.join(" ");
@@ -87,14 +92,15 @@ async fn main() -> Result<()> {
         Commands::Migrate {} => {
             return Ok(());
         }
-        Commands::Read { model, role } => {
-            g_model = model;
-            g_role = role;
-        }
 
         Commands::Update { model, zero_point } => {
             photometer::write_zero_point(model, zero_point).await?;
             return Ok(());
+        }
+
+        Commands::Read { model, role } => {
+            g_model = model;
+            g_role = role;
         }
     }
 
@@ -104,10 +110,6 @@ async fn main() -> Result<()> {
 
     let test_info = photometer::discover_test().await?;
     info!("{test_info:#?}");
-    // Display photometer info and bail out
-    if g_dry_run {
-        return Ok(());
-    }
 
     let ref_info = photometer::discover_ref(&pool).await?;
     info!("{ref_info:#?}");
