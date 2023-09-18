@@ -52,7 +52,7 @@ impl Discoverer {
                 }
             }
         }
-        info!("From http: {:#?}", info);
+
         Ok(info)
     }
 

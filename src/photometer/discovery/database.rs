@@ -3,7 +3,7 @@ use super::Info;
 use anyhow::Result;
 use diesel::prelude::*;
 use tokio::task;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 pub struct Discoverer<'a> {
     pool: &'a Pool,
@@ -41,7 +41,6 @@ impl<'a> Discoverer<'a> {
                 &_ => error!("{}", item.property),
             }
         }
-        info!("From database: {:#?}", info);
         Ok(info)
     }
 }

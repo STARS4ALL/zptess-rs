@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
     }
 
     let test_info = photometer::discover_test().await?;
+    info!("{test_info:#?}");
     // Display photometer info and bail out
     if g_dry_run {
         return Ok(());
@@ -113,6 +114,7 @@ async fn main() -> Result<()> {
     }
 
     let ref_info = photometer::discover_ref(&pool).await?;
+    info!("{ref_info:#?}");
 
     use zptess::photometer::payload::info::Payload;
 
