@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
     let mut g_test = false;
     let g_model;
     let g_role;
-    let mut g_author = "".to_string();
+    let mut g_author: Option<String> = None;
     let mut _guards;
 
     // parse CLI to establish logging levels and sinks
@@ -84,10 +84,9 @@ async fn main() -> Result<()> {
                     if dry_run {
                         return Ok(());
                     }
-
                     g_update = update;
                     if let Some(a) = author {
-                        g_author = a.join(" ");
+                        g_author = Some(a.join(" "));
                     }
                 }
             }
