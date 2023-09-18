@@ -9,6 +9,7 @@ use std::env;
 
 // let _tstamp = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
 pub type Timestamp = DateTime<Utc>;
+pub type Sample = (Timestamp, photometer::payload::info::Payload);
 
 const DATABASE_URL: &'static str = "DATABASE_URL";
 

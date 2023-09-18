@@ -91,11 +91,18 @@ async fn main() -> Result<()> {
     let mut _guards = logging::init(g_level, g_console, Some(g_log_file));
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
+    let pool = zptess::database::get_connection_pool(&database_url);
 
     let session = Utc::now();
 
     // Just run the possible migration and bail out
     if g_migrate {
+        return Ok(());
+    }
+
+    let test_info = photometer::discover_test().await?;
+    // Display photometer info and bail out
+    if g_dry_run {
         return Ok(());
     }
 
@@ -105,31 +112,26 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Display photometer info and bail out
-    if g_dry_run {
-        photometer::discover().await?;
-        return Ok(());
-    }
+    let ref_info = photometer::discover_ref(&pool).await?;
 
-    let pool = zptess::database::get_connection_pool(&database_url);
     use zptess::photometer::payload::info::Payload;
 
-    let (tx1, rx) = mpsc::channel::<(Timestamp, Payload, String)>(32);
+    let (tx1, rx) = mpsc::channel::<(Timestamp, Payload)>(32);
     let tx2 = tx1.clone();
-    let pool1 = pool.clone();
+
     let _session1 = session.clone(); // To move it to the proper thread
     let ftest = tokio::spawn(async move {
-        let _ = photometer::calibrate_task(pool1, tx1, false).await; // pool1 is moved to the task and gets out of scope
+        let _ = photometer::calibrate_task(tx1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
-    let pool2 = pool.clone();
     let fref = tokio::spawn(async move {
-        let _ = photometer::calibrate_task(pool2, tx2, true).await; // again: pool1 is moved to the task and gets out of scope
+        let _ = photometer::calibrate_task(tx2, true).await; // again: pool1 is moved to the task and gets out of scope
     });
 
-    let pool3 = pool.clone();
+    let pool1 = pool.clone();
     let stats = tokio::spawn(async move {
-        let _ = statistics::collect_task(pool3, rx, 9, 5, 5000).await; // again: pool1 is moved to the task and gets out of scope
+        let _ = statistics::collect_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+        // again: pool1 is moved to the task and gets out of scope
     });
 
     futures::future::join_all(vec![ftest, fref, stats]).await;

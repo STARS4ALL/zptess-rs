@@ -1,20 +1,23 @@
 use super::database::Pool;
+use super::photometer::discovery::Info;
 use super::photometer::payload::info::Payload;
-use super::Timestamp;
+use super::{Sample, Timestamp};
 use anyhow::Result;
-use chrono;
-
-use statistical::{mean, median, standard_deviation};
+use statistical::{median, standard_deviation};
 use std::collections::VecDeque;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{Duration, Instant};
 use tracing::info;
-const LABEL: [&str; 2] = ["REF.", "TEST"];
 
-type Sample = (Timestamp, Payload, String);
+pub mod auxiliary;
+const LABEL: [&str; 2] = ["REF.", "TEST"];
+const REF: usize = 0; // index into array
+const TEST: usize = 1; // index into array
+
 type SampleQueue = VecDeque<Sample>;
 
 pub struct Statistics {
+    info: [Info; 2],
     queue: [SampleQueue; 2],
     ready: [bool; 2],
     window: usize,
@@ -25,8 +28,16 @@ pub struct Statistics {
 }
 
 impl Statistics {
-    fn new(window: usize, channel: Receiver<Sample>, _nrounds: usize, millis: u64) -> Self {
+    fn new(
+        window: usize,
+        channel: Receiver<Sample>,
+        _nrounds: usize,
+        millis: u64,
+        ref_info: Info,
+        test_info: Info,
+    ) -> Self {
         Self {
+            info: [ref_info, test_info],
             queue: [
                 SampleQueue::with_capacity(window),
                 SampleQueue::with_capacity(window),
@@ -44,7 +55,6 @@ impl Statistics {
         let from = self.queue[idx].len() - self.window;
         let (slice, _) = self.queue[idx].as_mut_slices();
         let slice = &slice[from..];
-        let name = slice[0].2.clone();
         let tstamps: Vec<Timestamp> = slice.iter().map(|tup| tup.0).collect();
         let freqs: Vec<f32> = slice
             .iter()
@@ -67,7 +77,7 @@ impl Statistics {
             self.window,
             central,
             stdev,
-            name
+            self.info[idx].name,
         )
     }
 
@@ -76,25 +86,25 @@ impl Statistics {
         let begin = Instant::now();
         while let Some(message) = self.channel.recv().await {
             match message {
-                (_, Payload::Json(_), _) => {
+                (_, Payload::Json(_)) => {
                     self.possibly_enqueue(1, message, self.global_ready);
-                    self.global_ready = self.ready[0] && self.ready[1];
+                    self.global_ready = self.ready[REF] && self.ready[TEST];
                 }
-                (_, Payload::Cristogg(_), _) => {
+                (_, Payload::Cristogg(_)) => {
                     self.possibly_enqueue(0, message, self.global_ready);
-                    self.global_ready = self.ready[0] && self.ready[1];
+                    self.global_ready = self.ready[REF] && self.ready[TEST];
                 }
             }
             if Instant::now().duration_since(begin) > Duration::from_millis(self.millis) {
                 if self.global_ready {
-                    self.queue[0].make_contiguous();
-                    self.queue[1].make_contiguous();
+                    self.queue[REF].make_contiguous();
+                    self.queue[TEST].make_contiguous();
                     info!(
                         "================ Calculating statistics for round {} ================",
                         self.round
                     );
-                    self.calculate(0);
-                    self.calculate(1);
+                    self.calculate(REF);
+                    self.calculate(TEST);
                     break;
                 }
             }
@@ -107,7 +117,6 @@ impl Statistics {
             self.queue[idx].push_back(sample);
             return;
         }
-        let name = sample.2.clone();
         let length = self.queue[idx].len();
         let capacity = self.queue[idx].capacity();
         if length < capacity {
@@ -121,7 +130,7 @@ impl Statistics {
         info!(
             "[{}] {:9} Waiting for enough samples, {} remaining",
             LABEL[idx],
-            name,
+            self.info[idx].name,
             capacity - length
         );
     }
@@ -133,8 +142,10 @@ pub async fn collect_task(
     capacity: usize,
     nrounds: usize,
     millis: u64,
+    ref_info: Info,
+    test_info: Info,
 ) -> Result<()> {
-    let mut state = Statistics::new(capacity, chan, nrounds, millis);
+    let mut state = Statistics::new(capacity, chan, nrounds, millis, ref_info, test_info);
     for i in 1..=nrounds {
         //one_round(i, &mut chan, &mut state).await;
         state.one_round(i).await;

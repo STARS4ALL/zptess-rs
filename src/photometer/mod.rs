@@ -6,8 +6,8 @@ pub mod update;
 use super::database::Pool;
 use anyhow::Result;
 
-use super::Timestamp;
-use discovery::{database, Info};
+use super::{Sample, Timestamp};
+use discovery::Info;
 use payload::info::Payload;
 use payload::Decoder;
 use tokio::sync::mpsc::Sender;
@@ -38,8 +38,13 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn discover() -> Result<Info> {
+pub async fn discover_test() -> Result<Info> {
     discovery::http::Discoverer::new().discover().await
+}
+
+pub async fn discover_ref(pool: &Pool) -> Result<Info> {
+    let discoverer = discovery::database::Discoverer::new(pool);
+    discoverer.discover().await
 }
 
 pub async fn write_zero_point(zp: f32) -> Result<()> {
@@ -48,29 +53,14 @@ pub async fn write_zero_point(zp: f32) -> Result<()> {
     Ok(())
 }
 
-pub async fn calibrate_task(
-    pool: Pool,
-    chan: Sender<(Timestamp, Payload, String)>,
-    is_ref_phot: bool,
-) -> Result<()> {
-    let name: String;
-    if is_ref_phot {
-        let discoverer = database::Discoverer::new(&pool);
-        let info = discoverer.discover().await?;
-        name = info.name;
-    } else {
-        let discoverer = discovery::http::Discoverer::new();
-        let info = discoverer.discover().await?;
-        name = info.name;
-    }
-
+pub async fn calibrate_task(chan: Sender<Sample>, is_ref_phot: bool) -> Result<()> {
     let mut transport = choose_transport_type(is_ref_phot).await;
     let mut decoder = choose_decoder_type(is_ref_phot);
     loop {
         let RawSample(tstamp, raw_bytes) = transport.reading().await?;
         //info!("{raw_bytes:?}");
         match decoder.decode(tstamp, &raw_bytes) {
-            Ok((tstamp, payload)) => match chan.send((tstamp, payload, name.clone())).await {
+            Ok((tstamp, payload)) => match chan.send((tstamp, payload)).await {
                 Ok(_) => {}
                 Err(_) => {
                     break;
