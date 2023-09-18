@@ -38,7 +38,9 @@ async fn main() -> Result<()> {
     let mut g_dry_run = false;
     let mut g_update = false;
     let mut g_test = false;
-    let mut g_write_zp: Option<f32> = None;
+    let mut g_zero_point: Option<f32> = None;
+    let g_model;
+    let g_role;
     let mut g_migrate = false;
     let mut g_author = "".to_string();
 
@@ -57,6 +59,13 @@ async fn main() -> Result<()> {
         _ => Level::DEBUG,
     };
 
+    let mut _guards = logging::init(g_level, g_console, Some(g_log_file));
+    let database_url = zptess::get_database_url();
+    zptess::database::init(&database_url);
+    let pool = zptess::database::get_connection_pool(&database_url);
+
+    let session = Utc::now();
+
     match cli.command {
         Commands::Calibrate {
             model,
@@ -67,14 +76,10 @@ async fn main() -> Result<()> {
             Operation {
                 dry_run,
                 update,
-                write_zero_point,
                 test,
-                read,
             } => {
                 g_dry_run = dry_run;
                 g_update = update;
-                g_write_zp = write_zero_point;
-                g_test = test;
                 if let Some(a) = author {
                     g_author = a.join(" ");
                 }
@@ -83,18 +88,19 @@ async fn main() -> Result<()> {
         Commands::Migrate {} => {
             g_migrate = true;
         }
+        Commands::Read { model, role } => {
+            g_model = model;
+            g_role = role;
+        }
+
+        Commands::Update { model, zero_point } => {
+            g_zero_point = Some(zero_point);
+        }
     }
 
     // =========================================================================
     // =========================================================================
     // =========================================================================
-
-    let mut _guards = logging::init(g_level, g_console, Some(g_log_file));
-    let database_url = zptess::get_database_url();
-    zptess::database::init(&database_url);
-    let pool = zptess::database::get_connection_pool(&database_url);
-
-    let session = Utc::now();
 
     // Just run the possible migration and bail out
     if g_migrate {
@@ -109,7 +115,7 @@ async fn main() -> Result<()> {
     }
 
     // Write ZP and bail out
-    if let Some(zp) = g_write_zp {
+    if let Some(zp) = g_zero_point {
         photometer::write_zero_point(zp).await?;
         return Ok(());
     }

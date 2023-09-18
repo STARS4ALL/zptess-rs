@@ -6,6 +6,32 @@ pub fn parse() -> Cli {
     Cli::parse()
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[clap(rename_all = "kebab-case")]
+pub enum Model {
+    /// TESS WiFi model
+    TessW,
+
+    /// TESS Portable model
+    TessP,
+
+    /// TESS Auto Scan model
+    TAS,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[clap(rename_all = "lower")]
+pub enum Role {
+    /// Test photometer
+    Test,
+
+    /// Reference photometer
+    Ref,
+
+    /// Both photometers
+    Both,
+}
+
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
@@ -52,8 +78,31 @@ pub enum Commands {
         #[arg(short, long, action = Append, value_delimiter = ' ', num_args = 1..)]
         author: Option<Vec<String>>,
 
+        /// Specific operation
         #[command(flatten)]
         operation: Operation,
+    },
+
+    // Continuosly read photometer(s)
+    Read {
+        /// Photometer model
+        #[arg(short, long, value_enum, default_value = "tess-w")]
+        model: Model,
+
+        /// Read photometer
+        #[arg(short, long, value_name = "ROLE", value_enum)]
+        role: Role,
+    },
+
+    // Updates Zero point directly
+    Update {
+        /// Photometer model
+        #[arg(short, long, value_enum, default_value = "tess-w")]
+        model: Model,
+
+        /// Overwrites zero point
+        #[arg(short, long, value_name = "ZP")]
+        zero_point: f32,
     },
 }
 
@@ -68,41 +117,7 @@ pub struct Operation {
     #[arg(short, long)]
     pub update: bool,
 
-    /// Overwrites zero point
-    #[arg(short, long, value_name = "ZP")]
-    pub write_zero_point: Option<f32>,
-
     /// calibrate but don't update database
     #[arg(short, long)]
     pub test: bool,
-
-    /// Read photometer
-    #[arg(short, long, value_name = "ROLE", value_enum)]
-    pub read: Option<Role>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[clap(rename_all = "kebab-case")]
-pub enum Model {
-    /// TESS WiFi model
-    TessW,
-
-    /// TESS Portable model
-    TessP,
-
-    /// TESS Auto Scan model
-    TAS,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[clap(rename_all = "lower")]
-pub enum Role {
-    /// Test photometer
-    Test,
-
-    /// Reference photometer
-    Ref,
-
-    /// Both photometers
-    Both,
 }
