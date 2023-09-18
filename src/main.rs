@@ -38,32 +38,31 @@ async fn main() -> Result<()> {
     let mut g_dry_run = false;
     let mut g_update = false;
     let mut g_test = false;
-    let mut g_zero_point: Option<f32> = None;
     let g_model;
     let g_role;
-    let mut g_migrate = false;
     let mut g_author = "".to_string();
+    let mut _guards;
 
-    let (g_console, g_log_file, g_verbose) = match cli {
+    // parse CLI to establish logging levels and sinks
+    match cli {
         Cli {
             console,
             log_file,
             verbose,
             ..
-        } => (console, log_file, verbose),
+        } => {
+            let level = match verbose {
+                0 => Level::ERROR,
+                1 => Level::INFO,
+                _ => Level::DEBUG,
+            };
+            _guards = logging::init(level, console, Some(log_file));
+        }
     };
 
-    let g_level = match g_verbose {
-        0 => Level::ERROR,
-        1 => Level::INFO,
-        _ => Level::DEBUG,
-    };
-
-    let mut _guards = logging::init(g_level, g_console, Some(g_log_file));
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
     let pool = zptess::database::get_connection_pool(&database_url);
-
     let session = Utc::now();
 
     match cli.command {
@@ -86,7 +85,7 @@ async fn main() -> Result<()> {
             }
         },
         Commands::Migrate {} => {
-            g_migrate = true;
+            return Ok(());
         }
         Commands::Read { model, role } => {
             g_model = model;
@@ -94,7 +93,8 @@ async fn main() -> Result<()> {
         }
 
         Commands::Update { model, zero_point } => {
-            g_zero_point = Some(zero_point);
+            photometer::write_zero_point(model, zero_point).await?;
+            return Ok(());
         }
     }
 
@@ -102,21 +102,10 @@ async fn main() -> Result<()> {
     // =========================================================================
     // =========================================================================
 
-    // Just run the possible migration and bail out
-    if g_migrate {
-        return Ok(());
-    }
-
     let test_info = photometer::discover_test().await?;
     info!("{test_info:#?}");
     // Display photometer info and bail out
     if g_dry_run {
-        return Ok(());
-    }
-
-    // Write ZP and bail out
-    if let Some(zp) = g_zero_point {
-        photometer::write_zero_point(zp).await?;
         return Ok(());
     }
 

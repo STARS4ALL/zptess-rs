@@ -6,6 +6,7 @@ pub mod update;
 use super::database::Pool;
 use super::Sample;
 use anyhow::Result;
+use clap::ValueEnum;
 use discovery::Info;
 use payload::Decoder;
 use tokio::sync::mpsc::Sender;
@@ -13,6 +14,19 @@ use tracing::{debug, info};
 use transport::serial;
 use transport::udp;
 use transport::{RawSample, Transport};
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[clap(rename_all = "kebab-case")]
+pub enum Model {
+    /// TESS WiFi model
+    TessW,
+
+    /// TESS Portable model
+    TessP,
+
+    /// TESS Auto Scan model
+    TAS,
+}
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
     let decoder = if !is_ref_phot {
@@ -45,7 +59,7 @@ pub async fn discover_ref(pool: &Pool) -> Result<Info> {
     discoverer.discover().await
 }
 
-pub async fn write_zero_point(zp: f32) -> Result<()> {
+pub async fn write_zero_point(_model: Model, zp: f32) -> Result<()> {
     update::http::Updater::new().update_zp(zp).await?;
     info!("Updated Zero Point {:.02}", zp);
     Ok(())
