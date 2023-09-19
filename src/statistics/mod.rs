@@ -13,9 +13,14 @@ pub mod auxiliary;
 const LABEL: [&str; 2] = ["REF.", "TEST"];
 const REF: usize = 0; // index into array
 const TEST: usize = 1; // index into array
+const ZERO_POINT_FICT: f32 = 20.5;
 
 type PayloadQueue = VecDeque<Payload>;
 type TimestampQueue = VecDeque<Timestamp>;
+
+fn magntude(freq: f32, freq_offset: f32) -> f32 {
+    ZERO_POINT_FICT - 2.5 * (freq - freq_offset).log10()
+}
 
 pub struct Statistics {
     info: [Info; 2],
@@ -26,14 +31,16 @@ pub struct Statistics {
     global_ready: bool,
     round: usize,
     millis: u64, // Number of milliseconds to wait between rounds, usually 5000
-    channel: Receiver<Sample>,
+    channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
+    freqs: [Vec<f32>; 2], // central estimator of frequencies (currently median)
+    mags: [Vec<f32>; 2], // central estimator of frequencies (currently median)
 }
 
 impl Statistics {
     fn new(
         window: usize,
         channel: Receiver<Sample>,
-        _nrounds: usize,
+        nrounds: usize,
         millis: u64,
         ref_info: Info,
         test_info: Info,
@@ -54,10 +61,18 @@ impl Statistics {
             round: 1,
             millis,  // Milliseconds to wait between rounds, usually 5000
             channel, // Take ownership of the receiver end of the channel
+            freqs: [
+                Vec::<f32>::with_capacity(nrounds),
+                Vec::<f32>::with_capacity(nrounds),
+            ],
+            mags: [
+                Vec::<f32>::with_capacity(nrounds),
+                Vec::<f32>::with_capacity(nrounds),
+            ],
         }
     }
 
-    fn calculate(&self, idx: usize) {
+    fn calculate(&self, idx: usize) -> (f32, f32){
         let from = self.read_q[idx].len() - self.window;
         let (readings_slice, _) = self.read_q[idx].as_slices();
         let readings_slice = &readings_slice[from..];
@@ -74,19 +89,24 @@ impl Statistics {
         let t0 = tstamps_slice[0];
         let t1 = tstamps_slice[tstamps_slice.len() - 1];
         let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
-        let central = median(&freqs);
-        let stdev = standard_deviation(&freqs, Some(central));
+        let freq = median(&freqs);
+        let stdev = standard_deviation(&freqs, Some(freq));
+        let mag = magntude(freq, self.info[idx].freq_offset);
         info!(
-            "{0} {7:9} ({1}-{2})[{3:02}s][{4}] median f = {5}, \u{03C3} = {6}",
+            "{} {:9} ({}-{})[{:02}s][{}] median f = {:0.3} Hz, \u{03C3} = {:0.3} Hz, m = {:0.2} @ {:0.2}",
             LABEL[idx],
+             self.info[idx].name,
             t0.format("%H:%M:%S"),
             t1.format("%H:%M:%S"),
             dur,
             self.window,
-            central,
+            freq,
             stdev,
-            self.info[idx].name,
-        )
+           
+            mag,
+            ZERO_POINT_FICT,
+        );
+        (freq, mag)
     }
 
     fn possibly_enqueue(
@@ -150,7 +170,7 @@ impl Statistics {
                     self.read_q[REF].make_contiguous();
                     self.read_q[TEST].make_contiguous();
                     info!(
-                        "================ Calculating statistics for round {} ================",
+                        "========================= Calculating statistics for round {} =========================",
                         self.round
                     );
                     self.calculate(REF);

@@ -15,7 +15,7 @@ pub fn init(level: Level, console: bool, log_path: Option<PathBuf>) -> Vec<Worke
         let layer1 = fmt::layer()
             .with_level(true) // include levels in formatted output
             .with_target(false) // don't include targets
-            .with_thread_ids(true) // don't include the thread ID of the current thread
+            .with_thread_ids(false) // don't include the thread ID of the current thread
             .with_thread_names(false) // include the name of the current thread
             .compact() // use the `Compact` formatting style.
             .with_writer(std::io::stdout.with_max_level(level));
