@@ -14,11 +14,13 @@ const LABEL: [&str; 2] = ["REF.", "TEST"];
 const REF: usize = 0; // index into array
 const TEST: usize = 1; // index into array
 
-type SampleQueue = VecDeque<Sample>;
+type PayloadQueue = VecDeque<Payload>;
+type TimestampQueue = VecDeque<Timestamp>;
 
 pub struct Statistics {
     info: [Info; 2],
-    queue: [SampleQueue; 2],
+    read_q: [PayloadQueue; 2],
+    time_q: [TimestampQueue; 2],
     ready: [bool; 2],
     window: usize,
     global_ready: bool,
@@ -38,9 +40,13 @@ impl Statistics {
     ) -> Self {
         Self {
             info: [ref_info, test_info],
-            queue: [
-                SampleQueue::with_capacity(window),
-                SampleQueue::with_capacity(window),
+            read_q: [
+                PayloadQueue::with_capacity(window), // Ref
+                PayloadQueue::with_capacity(window), // Test
+            ],
+            time_q: [
+                TimestampQueue::with_capacity(window),
+                TimestampQueue::with_capacity(window),
             ],
             window,
             ready: [false, false],
@@ -51,20 +57,22 @@ impl Statistics {
         }
     }
 
-    fn calculate(&mut self, idx: usize) {
-        let from = self.queue[idx].len() - self.window;
-        let (slice, _) = self.queue[idx].as_mut_slices();
-        let slice = &slice[from..];
-        let tstamps: Vec<Timestamp> = slice.iter().map(|tup| tup.0).collect();
-        let freqs: Vec<f32> = slice
+    fn calculate(&self, idx: usize) {
+        let from = self.read_q[idx].len() - self.window;
+        let (readings_slice, _) = self.read_q[idx].as_slices();
+        let readings_slice = &readings_slice[from..];
+        let (tstamps_slice, _) = self.time_q[idx].as_slices();
+        let tstamps_slice = &tstamps_slice[from..];
+        let freqs: Vec<f32> = readings_slice
             .iter()
-            .map(|tup| match tup.1.clone() {
-                Payload::Json(p) => p.freq,
-                Payload::Cristogg(p) => p.freq,
+            .map(|x| match x.clone() {
+                Payload::Json(payload) => payload.freq,
+                Payload::Cristogg(payload) => payload.freq,
             })
             .collect();
-        let t0 = tstamps[0];
-        let t1 = tstamps[tstamps.len() - 1];
+
+        let t0 = tstamps_slice[0];
+        let t1 = tstamps_slice[tstamps_slice.len() - 1];
         let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
         let central = median(&freqs);
         let stdev = standard_deviation(&freqs, Some(central));
@@ -81,24 +89,64 @@ impl Statistics {
         )
     }
 
+    fn possibly_enqueue(
+        &mut self,
+        idx: usize,
+        tstamp: Timestamp,
+        payload: Payload,
+        is_measuring: bool,
+    ) {
+        // let the read_q grow and grow so we can save all samples
+        if is_measuring {
+            self.read_q[idx].push_back(payload);
+            self.time_q[idx].push_back(tstamp);
+            return;
+        }
+        let length = self.read_q[idx].len();
+        let capacity = self.read_q[idx].capacity();
+        if length < capacity {
+            self.read_q[idx].push_back(payload);
+            self.time_q[idx].push_back(tstamp);
+            self.ready[idx] = false;
+        } else {
+            self.read_q[idx].pop_front();
+            self.time_q[idx].pop_front();
+            self.read_q[idx].push_back(payload);
+            self.time_q[idx].push_back(tstamp);
+            self.ready[idx] = true;
+        }
+        info!(
+            "[{}] {:9} Waiting for enough samples, {} remaining",
+            LABEL[idx],
+            self.info[idx].name,
+            capacity - length
+        );
+    }
+
     async fn one_round(&mut self, round: usize) {
         self.round = round;
         let begin = Instant::now();
         while let Some(message) = self.channel.recv().await {
             match message {
-                (_, Payload::Json(_)) => {
-                    self.possibly_enqueue(1, message, self.global_ready);
+                (tstamp, Payload::Json(reading)) => {
+                    self.possibly_enqueue(TEST, tstamp, Payload::Json(reading), self.global_ready);
                     self.global_ready = self.ready[REF] && self.ready[TEST];
                 }
-                (_, Payload::Cristogg(_)) => {
-                    self.possibly_enqueue(0, message, self.global_ready);
+
+                (tstamp, Payload::Cristogg(reading)) => {
+                    self.possibly_enqueue(
+                        REF,
+                        tstamp,
+                        Payload::Cristogg(reading),
+                        self.global_ready,
+                    );
                     self.global_ready = self.ready[REF] && self.ready[TEST];
                 }
             }
             if Instant::now().duration_since(begin) > Duration::from_millis(self.millis) {
                 if self.global_ready {
-                    self.queue[REF].make_contiguous();
-                    self.queue[TEST].make_contiguous();
+                    self.read_q[REF].make_contiguous();
+                    self.read_q[TEST].make_contiguous();
                     info!(
                         "================ Calculating statistics for round {} ================",
                         self.round
@@ -109,30 +157,6 @@ impl Statistics {
                 }
             }
         }
-    }
-
-    fn possibly_enqueue(&mut self, idx: usize, sample: Sample, is_measuring: bool) {
-        // let the queue grow and grow so we can save all samples
-        if is_measuring {
-            self.queue[idx].push_back(sample);
-            return;
-        }
-        let length = self.queue[idx].len();
-        let capacity = self.queue[idx].capacity();
-        if length < capacity {
-            self.queue[idx].push_back(sample);
-            self.ready[idx] = false;
-        } else {
-            self.queue[idx].pop_front();
-            self.queue[idx].push_back(sample);
-            self.ready[idx] = true;
-        }
-        info!(
-            "[{}] {:9} Waiting for enough samples, {} remaining",
-            LABEL[idx],
-            self.info[idx].name,
-            capacity - length
-        );
     }
 }
 
