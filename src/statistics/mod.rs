@@ -113,6 +113,8 @@ impl Statistics {
             self.time_q[idx].pop_front();
             self.read_q[idx].push_back(payload);
             self.time_q[idx].push_back(tstamp);
+            self.read_q[idx].make_contiguous();
+            self.time_q[idx].make_contiguous();
             self.ready[idx] = true;
         }
         info!(
