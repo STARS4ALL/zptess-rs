@@ -72,7 +72,7 @@ impl Statistics {
         }
     }
 
-    fn calculate(&self, idx: usize) -> (f32, f32){
+    fn stats(&self, idx: usize) -> (f32, f32){
         let from = self.read_q[idx].len() - self.window;
         let (readings_slice, _) = self.read_q[idx].as_slices();
         let readings_slice = &readings_slice[from..];
@@ -133,8 +133,6 @@ impl Statistics {
             self.time_q[idx].pop_front();
             self.read_q[idx].push_back(payload);
             self.time_q[idx].push_back(tstamp);
-            self.read_q[idx].make_contiguous();
-            self.time_q[idx].make_contiguous();
             self.ready[idx] = true;
         }
         info!(
@@ -143,6 +141,11 @@ impl Statistics {
             self.info[idx].name,
             capacity - length
         );
+    }
+
+    fn accumulate(&mut self, idx: usize, freq: f32, mag: f32) {
+        self.freqs[idx].push(freq);
+        self.mags[idx].push(mag);
     }
 
     async fn one_round(&mut self, round: usize) {
@@ -169,12 +172,20 @@ impl Statistics {
                 if self.global_ready {
                     self.read_q[REF].make_contiguous();
                     self.read_q[TEST].make_contiguous();
+                    self.time_q[REF].make_contiguous();
+                    self.time_q[TEST].make_contiguous();
                     info!(
                         "========================= Calculating statistics for round {} =========================",
                         self.round
                     );
-                    self.calculate(REF);
-                    self.calculate(TEST);
+                    let (r_freq, r_mag) = self.stats(REF);
+                    let (t_freq, t_mag) = self.stats(TEST);
+                    let mag_diff = r_mag - t_mag;
+                    let zp = self.info[REF].zp + mag_diff;
+                     info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
+                        self.round, zp, mag_diff, self.info[REF].zp);
+                    self.accumulate(REF, r_freq, r_mag);
+                    self.accumulate(TEST, t_freq, t_mag);
                     break;
                 }
             }
