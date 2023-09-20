@@ -121,16 +121,16 @@ async fn main() -> Result<()> {
 
     let _session1 = session.clone(); // To move it to the proper thread
     let ftest = tokio::spawn(async move {
-        let _ = photometer::calibrate_task(tx1, false).await; // pool1 is moved to the task and gets out of scope
+        let _ = photometer::reading_task(tx1, false).await; // pool1 is moved to the task and gets out of scope
     });
 
     let fref = tokio::spawn(async move {
-        let _ = photometer::calibrate_task(tx2, true).await; // again: pool1 is moved to the task and gets out of scope
+        let _ = photometer::reading_task(tx2, true).await; // again: pool1 is moved to the task and gets out of scope
     });
 
     let pool1 = pool.clone();
     let stats = tokio::spawn(async move {
-        let _ = statistics::collect_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+        let _ = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
         // again: pool1 is moved to the task and gets out of scope
     });
 
@@ -138,6 +138,6 @@ async fn main() -> Result<()> {
     info!("All tasks terminated");
     // Nothing to do on the main task,
     // simply waits here
-    signal::ctrl_c().await?;
+    //signal::ctrl_c().await?;
     return Ok(());
 }

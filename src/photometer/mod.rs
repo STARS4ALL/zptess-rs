@@ -65,7 +65,7 @@ pub async fn write_zero_point(_model: Model, zp: f32) -> Result<()> {
     Ok(())
 }
 
-pub async fn calibrate_task(chan: Sender<Sample>, is_ref_phot: bool) -> Result<()> {
+pub async fn reading_task(chan: Sender<Sample>, is_ref_phot: bool) -> Result<()> {
     let mut transport = choose_transport_type(is_ref_phot).await;
     let mut decoder = choose_decoder_type(is_ref_phot);
     loop {

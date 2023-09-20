@@ -3,7 +3,7 @@ use super::photometer::discovery::Info;
 use super::photometer::payload::Payload;
 use super::{Sample, Timestamp};
 use anyhow::Result;
-use statistical::{median, standard_deviation};
+use statistical;
 use std::collections::VecDeque;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{Duration, Instant};
@@ -22,12 +22,99 @@ fn magntude(freq: f32, freq_offset: f32) -> f32 {
     ZERO_POINT_FICT - 2.5 * (freq - freq_offset).log10()
 }
 
-pub struct Statistics {
-    info: [Info; 2],
-    read_q: [PayloadQueue; 2],
-    time_q: [TimestampQueue; 2],
-    ready: [bool; 2],
-    window: usize,
+pub struct SamplesBuffer {
+    label: &'static str,
+    initial_size: usize,
+    read_q: PayloadQueue,
+    time_q: TimestampQueue,
+    ready: bool,
+    info: Info,
+}
+
+impl SamplesBuffer {
+    fn new(initial_size: usize, info: Info, label: &'static str) -> Self {
+        Self {
+            read_q: PayloadQueue::with_capacity(initial_size),
+            time_q: TimestampQueue::with_capacity(initial_size),
+            ready: false,
+            info,
+            label,
+            initial_size,
+        }
+    }
+
+    fn possibly_enqueue(&mut self, tstamp: Timestamp, payload: Payload, accumulate: bool) {
+        // let the read_q grow and grow so we can save all samples
+        if accumulate {
+            self.read_q.push_back(payload);
+            self.time_q.push_back(tstamp);
+            return;
+        }
+        let length = self.read_q.len();
+        let capacity = self.read_q.capacity();
+        if length < capacity {
+            self.read_q.push_back(payload);
+            self.time_q.push_back(tstamp);
+            self.ready = false;
+        } else {
+            self.read_q.pop_front();
+            self.time_q.pop_front();
+            self.read_q.push_back(payload);
+            self.time_q.push_back(tstamp);
+            self.ready = true;
+        }
+        info!(
+            "[{}] {:9} Waiting for enough samples, {} remaining",
+            self.label,
+            self.info.name,
+            capacity - length
+        );
+    }
+
+    fn make_contiguous(&mut self) {
+        self.read_q.make_contiguous();
+        self.time_q.make_contiguous();
+    }
+
+    fn median(&self) -> (f32, f32) {
+        let from = self.read_q.len() - self.initial_size;
+        let (readings_slice, _) = self.read_q.as_slices();
+        let readings_slice = &readings_slice[from..];
+        let (tstamps_slice, _) = self.time_q.as_slices();
+        let tstamps_slice = &tstamps_slice[from..];
+        let freqs: Vec<f32> = readings_slice
+            .iter()
+            .map(|x| match x.clone() {
+                Payload::Json(payload) => payload.freq,
+                Payload::Cristogg(payload) => payload.freq,
+            })
+            .collect();
+        let t0 = tstamps_slice[0];
+        let t1 = tstamps_slice[tstamps_slice.len() - 1];
+        let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
+        let freq = statistical::median(&freqs);
+        let stdev = statistical::standard_deviation(&freqs, Some(freq));
+        let mag = magntude(freq, self.info.freq_offset);
+        info!(
+            "{} {:9} ({}-{})[{:02}s][{}] median f = {:0.3} Hz, \u{03C3} = {:0.3} Hz, m = {:0.2} @ {:0.2}",
+            self.label,
+             self.info.name,
+            t0.format("%H:%M:%S"),
+            t1.format("%H:%M:%S"),
+            dur,
+            self.initial_size,
+            freq,
+            stdev,
+            mag,
+            ZERO_POINT_FICT,
+        );
+        (freq, mag)
+    }
+}
+
+pub struct Calibration {
+    refe: SamplesBuffer,
+    test: SamplesBuffer,
     global_ready: bool,
     round: usize,
     millis: u64, // Number of milliseconds to wait between rounds, usually 5000
@@ -36,7 +123,7 @@ pub struct Statistics {
     mags: [Vec<f32>; 2], // central estimator of frequencies (currently median)
 }
 
-impl Statistics {
+impl Calibration {
     fn new(
         window: usize,
         channel: Receiver<Sample>,
@@ -46,17 +133,8 @@ impl Statistics {
         test_info: Info,
     ) -> Self {
         Self {
-            info: [ref_info, test_info],
-            read_q: [
-                PayloadQueue::with_capacity(window), // Ref
-                PayloadQueue::with_capacity(window), // Test
-            ],
-            time_q: [
-                TimestampQueue::with_capacity(window),
-                TimestampQueue::with_capacity(window),
-            ],
-            window,
-            ready: [false, false],
+            refe: SamplesBuffer::new(window, ref_info, LABEL[REF]),
+            test: SamplesBuffer::new(window, test_info, LABEL[TEST]),
             global_ready: false,
             round: 1,
             millis,  // Milliseconds to wait between rounds, usually 5000
@@ -72,77 +150,6 @@ impl Statistics {
         }
     }
 
-    fn stats(&self, idx: usize) -> (f32, f32){
-        let from = self.read_q[idx].len() - self.window;
-        let (readings_slice, _) = self.read_q[idx].as_slices();
-        let readings_slice = &readings_slice[from..];
-        let (tstamps_slice, _) = self.time_q[idx].as_slices();
-        let tstamps_slice = &tstamps_slice[from..];
-        let freqs: Vec<f32> = readings_slice
-            .iter()
-            .map(|x| match x.clone() {
-                Payload::Json(payload) => payload.freq,
-                Payload::Cristogg(payload) => payload.freq,
-            })
-            .collect();
-
-        let t0 = tstamps_slice[0];
-        let t1 = tstamps_slice[tstamps_slice.len() - 1];
-        let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
-        let freq = median(&freqs);
-        let stdev = standard_deviation(&freqs, Some(freq));
-        let mag = magntude(freq, self.info[idx].freq_offset);
-        info!(
-            "{} {:9} ({}-{})[{:02}s][{}] median f = {:0.3} Hz, \u{03C3} = {:0.3} Hz, m = {:0.2} @ {:0.2}",
-            LABEL[idx],
-             self.info[idx].name,
-            t0.format("%H:%M:%S"),
-            t1.format("%H:%M:%S"),
-            dur,
-            self.window,
-            freq,
-            stdev,
-           
-            mag,
-            ZERO_POINT_FICT,
-        );
-        (freq, mag)
-    }
-
-    fn possibly_enqueue(
-        &mut self,
-        idx: usize,
-        tstamp: Timestamp,
-        payload: Payload,
-        is_measuring: bool,
-    ) {
-        // let the read_q grow and grow so we can save all samples
-        if is_measuring {
-            self.read_q[idx].push_back(payload);
-            self.time_q[idx].push_back(tstamp);
-            return;
-        }
-        let length = self.read_q[idx].len();
-        let capacity = self.read_q[idx].capacity();
-        if length < capacity {
-            self.read_q[idx].push_back(payload);
-            self.time_q[idx].push_back(tstamp);
-            self.ready[idx] = false;
-        } else {
-            self.read_q[idx].pop_front();
-            self.time_q[idx].pop_front();
-            self.read_q[idx].push_back(payload);
-            self.time_q[idx].push_back(tstamp);
-            self.ready[idx] = true;
-        }
-        info!(
-            "[{}] {:9} Waiting for enough samples, {} remaining",
-            LABEL[idx],
-            self.info[idx].name,
-            capacity - length
-        );
-    }
-
     fn accumulate(&mut self, idx: usize, freq: f32, mag: f32) {
         self.freqs[idx].push(freq);
         self.mags[idx].push(mag);
@@ -154,36 +161,34 @@ impl Statistics {
         while let Some(message) = self.channel.recv().await {
             match message {
                 (tstamp, Payload::Json(reading)) => {
-                    self.possibly_enqueue(TEST, tstamp, Payload::Json(reading), self.global_ready);
-                    self.global_ready = self.ready[REF] && self.ready[TEST];
+                    self.test
+                        .possibly_enqueue(tstamp, Payload::Json(reading), self.global_ready);
+                    self.global_ready = self.refe.ready && self.test.ready;
                 }
 
                 (tstamp, Payload::Cristogg(reading)) => {
-                    self.possibly_enqueue(
-                        REF,
+                    self.refe.possibly_enqueue(
                         tstamp,
                         Payload::Cristogg(reading),
                         self.global_ready,
                     );
-                    self.global_ready = self.ready[REF] && self.ready[TEST];
+                    self.global_ready = self.refe.ready && self.test.ready;
                 }
             }
             if Instant::now().duration_since(begin) > Duration::from_millis(self.millis) {
                 if self.global_ready {
-                    self.read_q[REF].make_contiguous();
-                    self.read_q[TEST].make_contiguous();
-                    self.time_q[REF].make_contiguous();
-                    self.time_q[TEST].make_contiguous();
+                    self.refe.make_contiguous();
+                    self.test.make_contiguous();
                     info!(
                         "========================= Calculating statistics for round {} =========================",
                         self.round
                     );
-                    let (r_freq, r_mag) = self.stats(REF);
-                    let (t_freq, t_mag) = self.stats(TEST);
+                    let (r_freq, r_mag) = self.refe.median();
+                    let (t_freq, t_mag) = self.test.median();
                     let mag_diff = r_mag - t_mag;
-                    let zp = self.info[REF].zp + mag_diff;
-                     info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
-                        self.round, zp, mag_diff, self.info[REF].zp);
+                    let zp = self.refe.info.zp + mag_diff;
+                    info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
+                        self.round, zp, mag_diff, self.refe.info.zp);
                     self.accumulate(REF, r_freq, r_mag);
                     self.accumulate(TEST, t_freq, t_mag);
                     break;
@@ -191,6 +196,24 @@ impl Statistics {
             }
         }
     }
+}
+
+pub async fn calibration_task(
+    _pool: Pool,
+    chan: Receiver<Sample>,
+    capacity: usize,
+    nrounds: usize,
+    millis: u64,
+    ref_info: Info,
+    test_info: Info,
+) -> Result<()> {
+    let mut state = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
+    for i in 1..=nrounds {
+        //one_round(i, &mut chan, &mut state).await;
+        state.one_round(i).await;
+    }
+    info!("Calibration task finished");
+    Ok(())
 }
 
 pub async fn collect_task(
@@ -202,11 +225,11 @@ pub async fn collect_task(
     ref_info: Info,
     test_info: Info,
 ) -> Result<()> {
-    let mut state = Statistics::new(capacity, chan, nrounds, millis, ref_info, test_info);
+    let mut state = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
     for i in 1..=nrounds {
         //one_round(i, &mut chan, &mut state).await;
         state.one_round(i).await;
     }
-    info!("Statistics task finished");
+    info!("Calibration task finished");
     Ok(())
 }
