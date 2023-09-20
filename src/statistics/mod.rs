@@ -4,6 +4,7 @@ use super::photometer::payload::Payload;
 use super::{Sample, Timestamp};
 use anyhow::Result;
 use statistical;
+use std::cmp;
 use std::collections::VecDeque;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{Duration, Instant};
@@ -273,31 +274,32 @@ impl Reading {
         }
     }
 
-    async fn reading(&mut self, is_ref: bool) {
+    async fn reading_single(&mut self, is_ref: bool) {
         let mut i: u8 = 0;
         while let Some(message) = self.channel.recv().await {
             match message {
                 (tstamp, Payload::Json(reading)) => {
                     self.test.enqueue(tstamp, Payload::Json(reading));
+                    if !is_ref && self.test.ready {
+                        self.test.make_contiguous();
+                        let n = cmp::max((self.test.speed()).round() as u8, 1);
+                        if i == 0 {
+                            self.test.median();
+                        }
+                        i = (i + 1) % n;
+                    }
                 }
                 (tstamp, Payload::Cristogg(reading)) => {
                     self.refe.enqueue(tstamp, Payload::Cristogg(reading));
+                    if is_ref && self.refe.ready {
+                        self.refe.make_contiguous();
+                        let n = cmp::max((self.refe.speed()).round() as u8, 1);
+                        if i == 0 {
+                            self.refe.median();
+                        }
+                        i = (i + 1) % n;
+                    }
                 }
-            }
-            if is_ref && self.refe.ready {
-                self.refe.make_contiguous();
-                let n = self.refe.speed().round() as u8;
-                if i == 0 {
-                    self.refe.median();
-                }
-                i = (i + 1) % n;
-            } else if !is_ref && self.test.ready {
-                self.test.make_contiguous();
-                let n = self.test.speed().round() as u8;
-                if i == 0 {
-                    self.test.median();
-                }
-                i = (i + 1) % n;
             }
         }
     }
@@ -311,6 +313,6 @@ pub async fn reading_task(
     test_info: Info,
 ) -> Result<()> {
     let mut stats = Reading::new(capacity, chan, ref_info, test_info);
-    stats.reading(false).await;
+    stats.reading_single(false).await;
     Ok(())
 }
