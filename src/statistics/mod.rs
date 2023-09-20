@@ -234,17 +234,34 @@ pub async fn calibration_task(
 }
 
 pub struct Reading {
-    refe: SamplesBuffer,
-    test: SamplesBuffer,
+    refe: Option<SamplesBuffer>,
+    test: Option<SamplesBuffer>,
     channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
 }
 
 impl Reading {
-    fn new(window: usize, channel: Receiver<Sample>, ref_info: Info, test_info: Info) -> Self {
+    fn new(
+        window: usize,
+        channel: Receiver<Sample>,
+        ref_info: Option<Info>,
+        test_info: Option<Info>,
+    ) -> Self {
+        let rbuf = if let Some(info) = ref_info {
+            Some(SamplesBuffer::new(window, info, LABEL[REF]))
+        } else {
+            None
+        };
+
+        let tbuf = if let Some(info) = test_info {
+            Some(SamplesBuffer::new(window, info, LABEL[TEST]))
+        } else {
+            None
+        };
+
         Self {
             channel,
-            refe: SamplesBuffer::new(window, ref_info, LABEL[REF]),
-            test: SamplesBuffer::new(window, test_info, LABEL[TEST]),
+            refe: rbuf,
+            test: tbuf,
         }
     }
 
@@ -253,53 +270,80 @@ impl Reading {
         while let Some(message) = self.channel.recv().await {
             match message {
                 (tstamp, Payload::Json(reading)) => {
-                    self.test.enqueue(tstamp, Payload::Json(reading));
+                    if let Some(ref mut queue) = self.test {
+                        queue.enqueue(tstamp, Payload::Json(reading));
+                    }
                 }
                 (tstamp, Payload::Cristogg(reading)) => {
-                    self.refe.enqueue(tstamp, Payload::Cristogg(reading));
+                    if let Some(ref mut queue) = self.refe {
+                        queue.enqueue(tstamp, Payload::Cristogg(reading));
+                    }
                 }
             }
-            if self.test.ready && self.refe.ready {
-                self.refe.make_contiguous();
-                self.test.make_contiguous();
-                // Adjust the tracing output speed to the slowest rate
-                let speed = self.test.speed() / self.refe.speed();
-                let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
-                if i == 0 {
-                    self.refe.median();
-                    self.test.median();
+            if let Some(ref mut test_queue) = self.test {
+                if let Some(ref mut refe_queue) = self.refe {
+                    test_queue.make_contiguous();
+                    refe_queue.make_contiguous();
+                    let speed = refe_queue.speed() / test_queue.speed();
+                    let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
+                    if i == 0 {
+                        refe_queue.median();
+                        test_queue.median();
+                    }
+                    i = (i + 1) % n;
                 }
-                i = (i + 1) % n;
             }
         }
     }
 
-    async fn reading_single(&mut self, is_ref: bool) {
-        let mut i: u8 = 0;
-        while let Some(message) = self.channel.recv().await {
-            match message {
-                (tstamp, Payload::Json(reading)) => {
-                    self.test.enqueue(tstamp, Payload::Json(reading));
-                    if !is_ref && self.test.ready {
-                        self.test.make_contiguous();
-                        let n = cmp::max((self.test.speed()).round() as u8, 1);
-                        if i == 0 {
-                            self.test.median();
+    async fn reading_single(&mut self) {
+        if let Some(ref mut queue) = self.test {
+            let mut i: u8 = 0;
+            while let Some(message) = self.channel.recv().await {
+                match message {
+                    (tstamp, payload) => {
+                        queue.enqueue(tstamp, payload);
+                        if queue.ready {
+                            queue.make_contiguous();
+                            let n = cmp::max((queue.speed()).round() as u8, 1);
+                            if i == 0 {
+                                queue.median();
+                            }
+                            i = (i + 1) % n;
                         }
-                        i = (i + 1) % n;
                     }
                 }
-                (tstamp, Payload::Cristogg(reading)) => {
-                    self.refe.enqueue(tstamp, Payload::Cristogg(reading));
-                    if is_ref && self.refe.ready {
-                        self.refe.make_contiguous();
-                        let n = cmp::max((self.refe.speed()).round() as u8, 1);
-                        if i == 0 {
-                            self.refe.median();
+            }
+        } else if let Some(ref mut queue) = self.refe {
+            let mut i: u8 = 0;
+            while let Some(message) = self.channel.recv().await {
+                match message {
+                    (tstamp, payload) => {
+                        queue.enqueue(tstamp, payload);
+                        if queue.ready {
+                            queue.make_contiguous();
+                            let n = cmp::max((queue.speed()).round() as u8, 1);
+                            if i == 0 {
+                                queue.median();
+                            }
+                            i = (i + 1) % n;
                         }
-                        i = (i + 1) % n;
                     }
                 }
+            }
+        }
+    }
+
+    async fn reading(&mut self) {
+        if let Some(_) = self.refe {
+            if let Some(_) = self.test {
+                self.reading_both().await;
+            } else {
+                self.reading_single().await;
+            }
+        } else {
+            if let Some(_) = self.test {
+                self.reading_single().await;
             }
         }
     }
@@ -309,10 +353,10 @@ pub async fn reading_task(
     _pool: Pool,
     chan: Receiver<Sample>,
     capacity: usize,
-    ref_info: Info,
-    test_info: Info,
+    ref_info: Option<Info>,
+    test_info: Option<Info>,
 ) -> Result<()> {
     let mut stats = Reading::new(capacity, chan, ref_info, test_info);
-    stats.reading_single(false).await;
+    stats.reading().await;
     Ok(())
 }

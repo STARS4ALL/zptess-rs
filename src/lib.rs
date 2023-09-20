@@ -11,6 +11,17 @@ use std::env;
 pub type Timestamp = DateTime<Utc>;
 pub type Sample = (Timestamp, photometer::payload::Payload);
 
+pub enum Model {
+    Tessw,
+    Tas,
+    Tessp,
+}
+
+pub enum Role {
+    Refe,
+    Test,
+}
+
 const DATABASE_URL: &'static str = "DATABASE_URL";
 
 pub fn get_database_url() -> String {

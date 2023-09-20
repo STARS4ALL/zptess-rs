@@ -1,10 +1,22 @@
 use clap::ArgAction::{Append, Count};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
-use zptess::photometer::Model;
 
 pub fn parse() -> Cli {
     Cli::parse()
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[clap(rename_all = "kebab-case")]
+pub enum Model {
+    /// TESS WiFi model
+    TessW,
+
+    /// TESS Portable model
+    TessP,
+
+    /// TESS Auto Scan model
+    TAS,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
