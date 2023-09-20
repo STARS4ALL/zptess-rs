@@ -43,13 +43,7 @@ impl SamplesBuffer {
         }
     }
 
-    fn possibly_enqueue(&mut self, tstamp: Timestamp, payload: Payload, accumulate: bool) {
-        // let the read_q grow and grow so we can save all samples
-        if accumulate {
-            self.read_q.push_back(payload);
-            self.time_q.push_back(tstamp);
-            return;
-        }
+    fn enqueue(&mut self, tstamp: Timestamp, payload: Payload) {
         let length = self.read_q.len();
         let capacity = self.read_q.capacity();
         if length < capacity {
@@ -63,11 +57,21 @@ impl SamplesBuffer {
             self.time_q.push_back(tstamp);
             self.ready = true;
         }
+    }
+
+    fn possibly_enqueue(&mut self, tstamp: Timestamp, payload: Payload, accumulate: bool) {
+        // let the read_q grow and grow so we can save all samples
+        if accumulate {
+            self.read_q.push_back(payload);
+            self.time_q.push_back(tstamp);
+            return;
+        }
+        self.enqueue(tstamp, payload);
         info!(
             "[{}] {:9} Waiting for enough samples, {} remaining",
             self.label,
             self.info.name,
-            capacity - length
+            self.read_q.capacity() - self.read_q.len()
         );
     }
 
@@ -231,19 +235,21 @@ impl Reading {
         while let Some(message) = self.channel.recv().await {
             match message {
                 (tstamp, Payload::Json(reading)) => {
-                    self.test
-                        .possibly_enqueue(tstamp, Payload::Json(reading), false);
+                    self.test.enqueue(tstamp, Payload::Json(reading));
+                    if self.test.ready {
+                        self.test.make_contiguous();
+                        self.test.median();
+                    }
                 }
 
                 (tstamp, Payload::Cristogg(reading)) => {
-                    self.refe
-                        .possibly_enqueue(tstamp, Payload::Cristogg(reading), false);
+                    self.refe.enqueue(tstamp, Payload::Cristogg(reading));
+                    if self.refe.ready {
+                        self.refe.make_contiguous();
+                        self.refe.median();
+                    }
                 }
             }
-            self.refe.make_contiguous();
-            self.test.make_contiguous();
-            self.refe.median();
-            self.test.median();
         }
     }
 }
