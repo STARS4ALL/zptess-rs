@@ -224,13 +224,13 @@ pub async fn calibration_task(
     millis: u64,
     ref_info: Info,
     test_info: Info,
-) -> Result<()> {
+) -> Result<f32> {
     let mut calib = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
     for i in 1..=nrounds {
         calib.one_round(i).await;
     }
     info!("Calibration task finished");
-    Ok(())
+    Ok(20.50)
 }
 
 pub struct Reading {

@@ -47,7 +47,7 @@ async fn do_read(model: argparse::Model, role: argparse::Role, pool: &Pool) -> R
     let mut ref_info: Option<Info> = None;
     match role {
         argparse::Role::Test => {
-            let _test_info = photometer::discover_test(model).await?;
+            let _test_info = photometer::discover_test(&model).await?;
             info!("{_test_info:#?}");
             test_info = Some(_test_info);
             let _ftest = tokio::spawn(async move {
@@ -63,7 +63,7 @@ async fn do_read(model: argparse::Model, role: argparse::Role, pool: &Pool) -> R
             });
         }
         argparse::Role::Both => {
-            let _test_info = photometer::discover_test(model).await?;
+            let _test_info = photometer::discover_test(&model).await?;
             info!("{_test_info:#?}");
             test_info = Some(_test_info);
             let _ref_info = photometer::discover_ref(&pool).await?;
@@ -91,9 +91,11 @@ async fn do_calibrate(
     pool: &Pool,
     _update: bool,
     _test: bool,
+    _author: Option<String>,
 ) -> Result<()> {
     let _session = Utc::now();
-    let test_info = photometer::discover_test(map_model(model)).await?;
+    let model = map_model(model);
+    let test_info = photometer::discover_test(&model).await?;
     info!("{test_info:#?}");
     let ref_info = photometer::discover_ref(&pool).await?;
     info!("{ref_info:#?}");
@@ -102,13 +104,19 @@ async fn do_calibrate(
     let ftest = tokio::spawn(async move {
         let _ = photometer::reading_task(tx1, false).await;
     });
-
     let fref = tokio::spawn(async move {
         let _ = photometer::reading_task(tx2, true).await;
     });
     let pool1 = pool.clone();
     let fstats = tokio::spawn(async move {
-        let _ = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+        let result = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+        let zp = result.expect("Calibrated ZP");
+        if _update {
+            photometer::write_zero_point(&model, zp)
+                .await
+                .expect("Written ZP OK");
+        }
+
         // again: pool1 is moved to the task and gets out of scope
     });
     futures::future::join_all(vec![ftest, fref, fstats]).await;
@@ -121,7 +129,6 @@ async fn do_calibrate(
 async fn main() -> Result<()> {
     let cli = argparse::parse();
 
-    let mut g_author: Option<String> = None;
     let mut _guards;
 
     // parse CLI to establish logging levels and sinks
@@ -158,16 +165,18 @@ async fn main() -> Result<()> {
                     update,
                     test,
                 } => {
-                    let test_info = photometer::discover_test(map_model(model)).await?;
-                    info!("{test_info:#?}");
+                    let mut g_author: Option<String> = None;
                     // Display photometer info and bail out
                     if dry_run {
+                        let model = map_model(model);
+                        let test_info = photometer::discover_test(&model).await?;
+                        info!("{test_info:#?}");
                         return Ok(());
                     }
                     if let Some(a) = author {
                         g_author = Some(a.join(" "));
                     }
-                    do_calibrate(model, &pool, update, test).await?
+                    do_calibrate(model, &pool, update, test, g_author).await?
                 }
             }
         }
@@ -177,7 +186,8 @@ async fn main() -> Result<()> {
         }
 
         Commands::Update { model, zero_point } => {
-            photometer::write_zero_point(map_model(model), zero_point).await?;
+            let model = map_model(model);
+            photometer::write_zero_point(&model, zero_point).await?;
             return Ok(());
         }
 

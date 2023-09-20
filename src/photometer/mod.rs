@@ -36,7 +36,7 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
     transport
 }
 
-pub async fn discover_test(_model: Model) -> Result<Info> {
+pub async fn discover_test(_model: &Model) -> Result<Info> {
     discovery::http::Discoverer::new().discover().await
 }
 
@@ -45,7 +45,7 @@ pub async fn discover_ref(pool: &Pool) -> Result<Info> {
     discoverer.discover().await
 }
 
-pub async fn write_zero_point(_model: Model, zp: f32) -> Result<()> {
+pub async fn write_zero_point(_model: &Model, zp: f32) -> Result<()> {
     update::http::Updater::new().update_zp(zp).await?;
     info!("Updated Zero Point {:.02}", zp);
     Ok(())
