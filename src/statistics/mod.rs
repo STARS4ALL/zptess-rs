@@ -115,7 +115,7 @@ impl SamplesBuffer {
 pub struct Calibration {
     refe: SamplesBuffer,
     test: SamplesBuffer,
-    global_ready: bool,
+    ready: bool, // Global redy flag computed from the two samples buffers
     round: usize,
     millis: u64, // Number of milliseconds to wait between rounds, usually 5000
     channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
@@ -135,7 +135,7 @@ impl Calibration {
         Self {
             refe: SamplesBuffer::new(window, ref_info, LABEL[REF]),
             test: SamplesBuffer::new(window, test_info, LABEL[TEST]),
-            global_ready: false,
+            ready: false,
             round: 1,
             millis,  // Milliseconds to wait between rounds, usually 5000
             channel, // Take ownership of the receiver end of the channel
@@ -162,21 +162,18 @@ impl Calibration {
             match message {
                 (tstamp, Payload::Json(reading)) => {
                     self.test
-                        .possibly_enqueue(tstamp, Payload::Json(reading), self.global_ready);
-                    self.global_ready = self.refe.ready && self.test.ready;
+                        .possibly_enqueue(tstamp, Payload::Json(reading), self.ready);
+                    self.ready = self.refe.ready && self.test.ready;
                 }
 
                 (tstamp, Payload::Cristogg(reading)) => {
-                    self.refe.possibly_enqueue(
-                        tstamp,
-                        Payload::Cristogg(reading),
-                        self.global_ready,
-                    );
-                    self.global_ready = self.refe.ready && self.test.ready;
+                    self.refe
+                        .possibly_enqueue(tstamp, Payload::Cristogg(reading), self.ready);
+                    self.ready = self.refe.ready && self.test.ready;
                 }
             }
             if Instant::now().duration_since(begin) > Duration::from_millis(self.millis) {
-                if self.global_ready {
+                if self.ready {
                     self.refe.make_contiguous();
                     self.test.make_contiguous();
                     info!(
@@ -207,29 +204,58 @@ pub async fn calibration_task(
     ref_info: Info,
     test_info: Info,
 ) -> Result<()> {
-    let mut state = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
+    let mut calib = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
     for i in 1..=nrounds {
-        //one_round(i, &mut chan, &mut state).await;
-        state.one_round(i).await;
+        calib.one_round(i).await;
     }
     info!("Calibration task finished");
     Ok(())
 }
 
-pub async fn collect_task(
+pub struct Reading {
+    refe: SamplesBuffer,
+    test: SamplesBuffer,
+    channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
+}
+
+impl Reading {
+    fn new(window: usize, channel: Receiver<Sample>, ref_info: Info, test_info: Info) -> Self {
+        Self {
+            channel,
+            refe: SamplesBuffer::new(window, ref_info, LABEL[REF]),
+            test: SamplesBuffer::new(window, test_info, LABEL[TEST]),
+        }
+    }
+
+    async fn reading(&mut self) {
+        while let Some(message) = self.channel.recv().await {
+            match message {
+                (tstamp, Payload::Json(reading)) => {
+                    self.test
+                        .possibly_enqueue(tstamp, Payload::Json(reading), false);
+                }
+
+                (tstamp, Payload::Cristogg(reading)) => {
+                    self.refe
+                        .possibly_enqueue(tstamp, Payload::Cristogg(reading), false);
+                }
+            }
+            self.refe.make_contiguous();
+            self.test.make_contiguous();
+            self.refe.median();
+            self.test.median();
+        }
+    }
+}
+
+pub async fn reading_task(
     _pool: Pool,
     chan: Receiver<Sample>,
     capacity: usize,
-    nrounds: usize,
-    millis: u64,
     ref_info: Info,
     test_info: Info,
 ) -> Result<()> {
-    let mut state = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
-    for i in 1..=nrounds {
-        //one_round(i, &mut chan, &mut state).await;
-        state.one_round(i).await;
-    }
-    info!("Calibration task finished");
+    let mut stats = Reading::new(capacity, chan, ref_info, test_info);
+    stats.reading().await;
     Ok(())
 }

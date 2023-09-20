@@ -63,6 +63,7 @@ async fn main() -> Result<()> {
     zptess::database::init(&database_url);
     let pool = zptess::database::get_connection_pool(&database_url);
     let session = Utc::now();
+    let mut g_read = false;
 
     match cli.command {
         Commands::Calibrate {
@@ -104,6 +105,7 @@ async fn main() -> Result<()> {
         Commands::Read { model, role } => {
             g_model = model;
             g_role = role;
+            g_read = true;
         }
     }
 
@@ -129,12 +131,20 @@ async fn main() -> Result<()> {
     });
 
     let pool1 = pool.clone();
-    let stats = tokio::spawn(async move {
-        let _ = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
-        // again: pool1 is moved to the task and gets out of scope
-    });
 
-    futures::future::join_all(vec![ftest, fref, stats]).await;
+    let fstats = if g_read {
+        tokio::spawn(async move {
+            let _ = statistics::reading_task(pool1, rx, 9, ref_info, test_info).await;
+            // again: pool1 is moved to the task and gets out of scope
+        })
+    } else {
+        tokio::spawn(async move {
+            let _ = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+            // again: pool1 is moved to the task and gets out of scope
+        })
+    };
+
+    futures::future::join_all(vec![ftest, fref, fstats]).await;
     info!("All tasks terminated");
     // Nothing to do on the main task,
     // simply waits here
