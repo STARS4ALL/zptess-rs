@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -18,12 +19,15 @@ where
             let mut max = 1;
             let mut mode = None;
             for (val, count) in counter.iter() {
-                if *count == max {
-                    // Handle multimodal
-                    mode = None;
-                } else if *count > max {
-                    max = *count;
-                    mode = Some(**val);
+                match count.cmp(&max) {
+                    Ordering::Equal => {
+                        mode = None;
+                    }
+                    Ordering::Greater => {
+                        max = *count;
+                        mode = Some(**val);
+                    }
+                    _ => {}
                 }
             }
             mode
