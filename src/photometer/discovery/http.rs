@@ -24,6 +24,12 @@ pub struct Discoverer {
     re: Vec<Regex>,
 }
 
+impl Default for Discoverer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Discoverer {
     pub fn new() -> Self {
         Self {

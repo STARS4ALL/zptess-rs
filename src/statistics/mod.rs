@@ -178,31 +178,30 @@ impl Calibration {
                         .possibly_enqueue(tstamp, Payload::Json(reading), self.ready);
                     self.ready = self.refe.ready && self.test.ready;
                 }
-
                 (tstamp, Payload::Cristogg(reading)) => {
                     self.refe
                         .possibly_enqueue(tstamp, Payload::Cristogg(reading), self.ready);
                     self.ready = self.refe.ready && self.test.ready;
                 }
             }
-            if Instant::now().duration_since(begin) > Duration::from_millis(self.millis) {
-                if self.ready {
-                    self.refe.make_contiguous();
-                    self.test.make_contiguous();
-                    info!(
-                        "========================= Calculating statistics for round {} =========================",
-                        self.round
-                    );
-                    let (r_freq, r_mag) = self.refe.median();
-                    let (t_freq, t_mag) = self.test.median();
-                    let mag_diff = r_mag - t_mag;
-                    let zp = self.refe.info.zp + mag_diff;
-                    info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
-                        self.round, zp, mag_diff, self.refe.info.zp);
-                    self.accumulate(REF, r_freq, r_mag);
-                    self.accumulate(TEST, t_freq, t_mag);
-                    break;
-                }
+            if Instant::now().duration_since(begin) > Duration::from_millis(self.millis)
+                && self.ready
+            {
+                self.refe.make_contiguous();
+                self.test.make_contiguous();
+                info!(
+                    "========================= Calculating statistics for round {} =========================",
+                    self.round
+                );
+                let (r_freq, r_mag) = self.refe.median();
+                let (t_freq, t_mag) = self.test.median();
+                let mag_diff = r_mag - t_mag;
+                let zp = self.refe.info.zp + mag_diff;
+                info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
+                    self.round, zp, mag_diff, self.refe.info.zp);
+                self.accumulate(REF, r_freq, r_mag);
+                self.accumulate(TEST, t_freq, t_mag);
+                break;
             }
         }
     }
@@ -238,18 +237,8 @@ impl Reading {
         ref_info: Option<Info>,
         test_info: Option<Info>,
     ) -> Self {
-        let rbuf = if let Some(info) = ref_info {
-            Some(SamplesBuffer::new(window, info, LABEL[REF]))
-        } else {
-            None
-        };
-
-        let tbuf = if let Some(info) = test_info {
-            Some(SamplesBuffer::new(window, info, LABEL[TEST]))
-        } else {
-            None
-        };
-
+        let rbuf = ref_info.map(|info| SamplesBuffer::new(window, info, LABEL[REF]));
+        let tbuf = test_info.map(|info| SamplesBuffer::new(window, info, LABEL[TEST]));
         Self {
             channel,
             refe: rbuf,
@@ -296,18 +285,15 @@ impl Reading {
             self.test.as_mut().unwrap()
         };
         while let Some(message) = self.channel.recv().await {
-            match message {
-                (tstamp, payload) => {
-                    queue.enqueue(tstamp, payload);
-                    if queue.ready {
-                        queue.make_contiguous();
-                        let n = cmp::max((queue.speed()).round() as u8, 1);
-                        if i == 0 {
-                            queue.median();
-                        }
-                        i = (i + 1) % n;
-                    }
+            let (tstamp, payload) = message;
+            queue.enqueue(tstamp, payload);
+            if queue.ready {
+                queue.make_contiguous();
+                let n = cmp::max((queue.speed()).round() as u8, 1);
+                if i == 0 {
+                    queue.median();
                 }
+                i = (i + 1) % n;
             }
         }
     }

@@ -22,7 +22,7 @@ pub enum Role {
     Test,
 }
 
-const DATABASE_URL: &'static str = "DATABASE_URL";
+const DATABASE_URL: &str = "DATABASE_URL";
 
 pub fn get_database_url() -> String {
     dotenv().ok();

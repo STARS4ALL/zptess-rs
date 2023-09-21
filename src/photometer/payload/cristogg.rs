@@ -14,6 +14,12 @@ pub struct Decoder {
     sample: Option<(Timestamp, Cristogg)>, // prev sample to filter out duplicate readinngs
 }
 
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Decoder {
     pub fn new() -> Self {
         Self {

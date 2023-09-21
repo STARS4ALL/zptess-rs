@@ -19,7 +19,7 @@ pub type Pool = diesel::r2d2::Pool<ConnectionManager<DbConnection>>;
 pub type PooledConnection = diesel::r2d2::PooledConnection<ConnectionManager<DbConnection>>;
 
 fn establish_connection(database_url: &str) -> DbConnection {
-    DbConnection::establish(&database_url)
+    DbConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
@@ -35,7 +35,7 @@ fn get_database_version(connection: &mut DbConnection) -> String {
     debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
     let results: Vec<String> = sql.load(connection).expect("Error loading version");
     // We asume in our databases that this configuation entry always exists
-    return results[0].clone();
+    results[0].clone()
 }
 
 fn get_database_uuid(connection: &mut DbConnection) -> String {
@@ -59,9 +59,9 @@ fn get_database_uuid(connection: &mut DbConnection) -> String {
         ));
         debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
         sql.execute(connection).expect("Error saving uuid");
-        return my_uuid;
+        my_uuid
     } else {
-        return results[0].clone();
+        results[0].clone()
     }
 }
 
@@ -83,7 +83,7 @@ fn run_migrations(
 // We do not need a connection pool here
 pub fn init(database_url: &str) -> DbConnection {
     let mut connection = establish_connection(database_url);
-    let _result = run_migrations(&mut connection).expect("Running migrations");
+    run_migrations(&mut connection).expect("Running migrations");
     info!(
         "Opened database {}, version {}, UUID = {}",
         database_url,

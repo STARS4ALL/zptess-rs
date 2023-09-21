@@ -2,13 +2,19 @@ use anyhow::{bail, ensure, Result};
 use regex::Regex;
 use std::time::Duration;
 
-const URL_SET_ZP_V1: &'static str = "http://192.168.4.1/SetZP";
-const URL_SET_ZP_V2: &'static str = "http://192.168.4.1/setconst";
-const URL_GET_ZP: &'static str = "http://192.168.4.1/config";
+const URL_SET_ZP_V1: &str = "http://192.168.4.1/SetZP";
+const URL_SET_ZP_V2: &str = "http://192.168.4.1/setconst";
+const URL_GET_ZP: &str = "http://192.168.4.1/config";
 const ZP: &str = r"(ZP|CI.*): (\d{1,2}\.\d{1,2})";
 
 pub struct Updater {
     re: Regex,
+}
+
+impl Default for Updater {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Updater {

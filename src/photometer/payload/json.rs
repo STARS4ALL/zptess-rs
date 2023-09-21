@@ -11,6 +11,12 @@ pub struct Decoder {
 
 // Ok((tstamp, Payload::Json(info)))
 
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Decoder {
     pub fn new() -> Self {
         Self { sample: None }

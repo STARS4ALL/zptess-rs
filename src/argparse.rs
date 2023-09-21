@@ -1,7 +1,6 @@
 use clap::ArgAction::{Append, Count};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
-use tracing;
 
 pub fn parse() -> Cli {
     Cli::parse()

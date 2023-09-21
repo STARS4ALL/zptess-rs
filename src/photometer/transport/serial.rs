@@ -11,10 +11,10 @@ use tokio_serial::SerialStream;
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[cfg(unix)]
-const DEFAULT_TTY: &'static str = "/dev/ttyUSB0";
+const DEFAULT_TTY: &str = "/dev/ttyUSB0";
 
 #[cfg(windows)]
-const DEFAULT_TTY: &'static str = "COM1";
+const DEFAULT_TTY: &str = "COM1";
 
 struct LineCodec;
 

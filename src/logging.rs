@@ -1,12 +1,8 @@
+use std::path::PathBuf;
 use tracing::Level;
-
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, Registry};
-
-use tracing_appender;
-use tracing_appender::non_blocking::WorkerGuard;
-
-use std::path::PathBuf;
 
 pub fn init(level: Level, console: bool, log_path: Option<PathBuf>) -> Vec<WorkerGuard> {
     let mut guards = Vec::new();
