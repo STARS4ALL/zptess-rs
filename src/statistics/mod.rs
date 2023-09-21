@@ -282,7 +282,6 @@ impl Reading {
             }
             let test_queue = self.test.as_mut().unwrap();
             let refe_queue = self.refe.as_mut().unwrap();
-
             test_queue.make_contiguous();
             refe_queue.make_contiguous();
             let speed = refe_queue.speed() / test_queue.speed();
