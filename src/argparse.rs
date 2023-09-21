@@ -1,6 +1,7 @@
 use clap::ArgAction::{Append, Count};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+use tracing;
 
 pub fn parse() -> Cli {
     Cli::parse()
@@ -59,6 +60,16 @@ pub struct Cli {
 
     #[command(subcommand)]
     pub command: Commands,
+}
+
+impl Cli {
+    pub fn log_level(level: u8) -> tracing::Level {
+        match level {
+            0 => tracing::Level::ERROR,
+            1 => tracing::Level::INFO,
+            _ => tracing::Level::DEBUG,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]

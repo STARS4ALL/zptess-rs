@@ -15,16 +15,15 @@ use transport::udp;
 use transport::{RawSample, Transport};
 
 fn choose_decoder_type(is_ref_phot: bool) -> Decoder {
-    let decoder = if !is_ref_phot {
+    if !is_ref_phot {
         Decoder::Json(payload::json::Decoder::new())
     } else {
         Decoder::Cristogg(payload::cristogg::Decoder::new())
-    };
-    decoder
+    }
 }
 
 async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
-    let transport = if !is_ref_phot {
+    if !is_ref_phot {
         Transport::Udp(udp::Transport::new(2255).await.expect("New UDP Transport"))
     } else {
         Transport::Serial(
@@ -32,8 +31,7 @@ async fn choose_transport_type(is_ref_phot: bool) -> transport::Transport {
                 .await
                 .expect("New serial Transport"),
         )
-    };
-    transport
+    }
 }
 
 pub async fn discover_test(_model: &Model) -> Result<Info> {

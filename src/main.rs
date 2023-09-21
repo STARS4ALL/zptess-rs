@@ -3,8 +3,7 @@ use argparse::{Cli, Commands, Operation};
 use chrono::prelude::*;
 use tokio::signal;
 use tokio::sync::mpsc;
-use tracing::{info, Level};
-use zptess;
+use tracing::info;
 use zptess::database::Pool;
 use zptess::photometer::discovery::Info;
 use zptess::photometer::payload::Payload;
@@ -109,8 +108,6 @@ async fn do_calibrate(
                 .await
                 .expect("Written ZP OK");
         }
-
-        // again: pool1 is moved to the task and gets out of scope
     });
     futures::future::join_all(vec![ftest, fref, fstats]).await;
     info!("All tasks terminated");
@@ -128,11 +125,7 @@ async fn main() -> Result<()> {
         command,
     } = cli;
 
-    let level = match verbose {
-        0 => Level::ERROR,
-        1 => Level::INFO,
-        _ => Level::DEBUG,
-    };
+    let level = Cli::log_level(verbose);
     let _guards = logging::init(level, console, Some(log_file));
 
     let database_url = zptess::get_database_url();
@@ -183,10 +176,6 @@ async fn main() -> Result<()> {
             return Ok(());
         }
     }
-
-    // =========================================================================
-    // =========================================================================
-    // =========================================================================
 
     Ok(())
 }
