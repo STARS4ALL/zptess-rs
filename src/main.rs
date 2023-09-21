@@ -48,7 +48,7 @@ async fn do_read(model: argparse::Model, role: argparse::Role, pool: &Pool) -> R
             });
         }
         argparse::Role::Ref => {
-            let _ref_info = photometer::discover_ref(&pool).await?;
+            let _ref_info = photometer::discover_ref(pool).await?;
             info!("{_ref_info:#?}");
             ref_info = Some(_ref_info);
             let _fref = tokio::spawn(async move {
@@ -59,7 +59,7 @@ async fn do_read(model: argparse::Model, role: argparse::Role, pool: &Pool) -> R
             let _test_info = photometer::discover_test(&model).await?;
             info!("{_test_info:#?}");
             test_info = Some(_test_info);
-            let _ref_info = photometer::discover_ref(&pool).await?;
+            let _ref_info = photometer::discover_ref(pool).await?;
             info!("{_ref_info:#?}");
             ref_info = Some(_ref_info);
             let _ftest = tokio::spawn(async move {
@@ -90,7 +90,7 @@ async fn do_calibrate(
     let model = model.map_model();
     let test_info = photometer::discover_test(&model).await?;
     info!("{test_info:#?}");
-    let ref_info = photometer::discover_ref(&pool).await?;
+    let ref_info = photometer::discover_ref(pool).await?;
     info!("{ref_info:#?}");
     let (tx1, rx) = mpsc::channel::<(Timestamp, Payload)>(32);
     let tx2 = tx1.clone();
@@ -121,12 +121,11 @@ async fn do_calibrate(
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cli = argparse::parse();
-    // parse CLI to establish logging levels and sinks
     let Cli {
         console,
         log_file,
         verbose,
-        ..
+        command,
     } = cli;
 
     let level = match verbose {
@@ -140,9 +139,12 @@ async fn main() -> Result<()> {
     zptess::database::init(&database_url);
     let pool = zptess::database::get_connection_pool(&database_url);
 
-    match cli.command {
+    match command {
         Commands::Calibrate {
             model,
+            // filter,
+            // plug,
+            // box_model,
             author,
             operation,
             ..
@@ -152,20 +154,18 @@ async fn main() -> Result<()> {
                 update,
                 test,
             } = operation;
-            {
-                let mut g_author: Option<String> = None;
-                // Display photometer info and bail out
-                if dry_run {
-                    let model = model.map_model();
-                    let test_info = photometer::discover_test(&model).await?;
-                    info!("{test_info:#?}");
-                    return Ok(());
-                }
-                if let Some(a) = author {
-                    g_author = Some(a.join(" "));
-                }
-                do_calibrate(model, &pool, update, test, g_author).await?
+
+            //let mut g_author: Option<String> = None;
+            // Display photometer info and bail out
+            if dry_run {
+                let model = model.map_model();
+                let test_info = photometer::discover_test(&model).await?;
+                info!("{test_info:#?}");
+                return Ok(());
             }
+            // Join the vector of strings into a single string
+            let author = author.map(|a| a.join(" "));
+            do_calibrate(model, &pool, update, test, author).await?
         }
 
         Commands::Migrate {} => {
