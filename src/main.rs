@@ -31,16 +31,9 @@ struct Cli {
 }
 
 */
-fn map_model(model: argparse::Model) -> zptess::Model {
-    match model {
-        argparse::Model::TessW => zptess::Model::Tessw,
-        argparse::Model::TAS => zptess::Model::Tas,
-        argparse::Model::TessP => zptess::Model::Tessp,
-    }
-}
 
 async fn do_read(model: argparse::Model, role: argparse::Role, pool: &Pool) -> Result<()> {
-    let model = map_model(model);
+    let model = model.map_model();
     let (tx1, rx) = mpsc::channel::<(Timestamp, Payload)>(32);
     let tx2 = tx1.clone();
     let mut test_info: Option<Info> = None;
@@ -94,7 +87,7 @@ async fn do_calibrate(
     _author: Option<String>,
 ) -> Result<()> {
     let _session = Utc::now();
-    let model = map_model(model);
+    let model = model.map_model();
     let test_info = photometer::discover_test(&model).await?;
     info!("{test_info:#?}");
     let ref_info = photometer::discover_ref(&pool).await?;
@@ -128,25 +121,20 @@ async fn do_calibrate(
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cli = argparse::parse();
-
-    let mut _guards;
-
     // parse CLI to establish logging levels and sinks
-    match cli {
-        Cli {
-            console,
-            log_file,
-            verbose,
-            ..
-        } => {
-            let level = match verbose {
-                0 => Level::ERROR,
-                1 => Level::INFO,
-                _ => Level::DEBUG,
-            };
-            _guards = logging::init(level, console, Some(log_file));
-        }
+    let Cli {
+        console,
+        log_file,
+        verbose,
+        ..
+    } = cli;
+
+    let level = match verbose {
+        0 => Level::ERROR,
+        1 => Level::INFO,
+        _ => Level::DEBUG,
     };
+    let _guards = logging::init(level, console, Some(log_file));
 
     let database_url = zptess::get_database_url();
     zptess::database::init(&database_url);
@@ -159,25 +147,24 @@ async fn main() -> Result<()> {
             operation,
             ..
         } => {
-            match operation {
-                Operation {
-                    dry_run,
-                    update,
-                    test,
-                } => {
-                    let mut g_author: Option<String> = None;
-                    // Display photometer info and bail out
-                    if dry_run {
-                        let model = map_model(model);
-                        let test_info = photometer::discover_test(&model).await?;
-                        info!("{test_info:#?}");
-                        return Ok(());
-                    }
-                    if let Some(a) = author {
-                        g_author = Some(a.join(" "));
-                    }
-                    do_calibrate(model, &pool, update, test, g_author).await?
+            let Operation {
+                dry_run,
+                update,
+                test,
+            } = operation;
+            {
+                let mut g_author: Option<String> = None;
+                // Display photometer info and bail out
+                if dry_run {
+                    let model = model.map_model();
+                    let test_info = photometer::discover_test(&model).await?;
+                    info!("{test_info:#?}");
+                    return Ok(());
                 }
+                if let Some(a) = author {
+                    g_author = Some(a.join(" "));
+                }
+                do_calibrate(model, &pool, update, test, g_author).await?
             }
         }
 
@@ -186,7 +173,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::Update { model, zero_point } => {
-            let model = map_model(model);
+            let model = model.map_model();
             photometer::write_zero_point(&model, zero_point).await?;
             return Ok(());
         }
@@ -201,5 +188,5 @@ async fn main() -> Result<()> {
     // =========================================================================
     // =========================================================================
 
-    return Ok(());
+    Ok(())
 }

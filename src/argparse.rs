@@ -19,6 +19,16 @@ pub enum Model {
     TAS,
 }
 
+impl Model {
+    pub fn map_model(&self) -> zptess::Model {
+        match self {
+            Model::TessW => zptess::Model::Tessw,
+            Model::TAS => zptess::Model::Tas,
+            Model::TessP => zptess::Model::Tessp,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[clap(rename_all = "lower")]
 pub enum Role {
