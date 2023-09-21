@@ -280,80 +280,45 @@ impl Reading {
                     }
                 }
             }
-            if let Some(ref mut test_queue) = self.test {
-                if let Some(ref mut refe_queue) = self.refe {
-                    test_queue.make_contiguous();
-                    refe_queue.make_contiguous();
-                    let speed = refe_queue.speed() / test_queue.speed();
-                    let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
-                    if i == 0 {
-                        refe_queue.median();
-                        test_queue.median();
-                    }
-                    i = (i + 1) % n;
-                }
+            let test_queue = self.test.as_mut().unwrap();
+            let refe_queue = self.refe.as_mut().unwrap();
+
+            test_queue.make_contiguous();
+            refe_queue.make_contiguous();
+            let speed = refe_queue.speed() / test_queue.speed();
+            let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
+            if i == 0 {
+                refe_queue.median();
+                test_queue.median();
             }
+            i = (i + 1) % n;
         }
     }
 
     async fn reading_single(&mut self) {
-        if let Some(ref mut queue) = self.test {
-            let mut i: u8 = 0;
-            while let Some(message) = self.channel.recv().await {
-                match message {
-                    (tstamp, payload) => {
-                        queue.enqueue(tstamp, payload);
-                        if queue.ready {
-                            queue.make_contiguous();
-                            let n = cmp::max((queue.speed()).round() as u8, 1);
-                            if i == 0 {
-                                queue.median();
-                            }
-                            i = (i + 1) % n;
+        let mut i: u8 = 0;
+        let queue = if self.refe.is_some() {
+            self.refe.as_mut().unwrap()
+        } else {
+            self.test.as_mut().unwrap()
+        };
+        while let Some(message) = self.channel.recv().await {
+            match message {
+                (tstamp, payload) => {
+                    queue.enqueue(tstamp, payload);
+                    if queue.ready {
+                        queue.make_contiguous();
+                        let n = cmp::max((queue.speed()).round() as u8, 1);
+                        if i == 0 {
+                            queue.median();
                         }
-                    }
-                }
-            }
-        } else if let Some(ref mut queue) = self.refe {
-            let mut i: u8 = 0;
-            while let Some(message) = self.channel.recv().await {
-                match message {
-                    (tstamp, payload) => {
-                        queue.enqueue(tstamp, payload);
-                        if queue.ready {
-                            queue.make_contiguous();
-                            let n = cmp::max((queue.speed()).round() as u8, 1);
-                            if i == 0 {
-                                queue.median();
-                            }
-                            i = (i + 1) % n;
-                        }
+                        i = (i + 1) % n;
                     }
                 }
             }
         }
     }
 
-    /*
-        async fn reading_single(&mut self, queue: &mut SamplesBuffer) {
-            let mut i: u8 = 0;
-            while let Some(message) = self.channel.recv().await {
-                match message {
-                    (tstamp, payload) => {
-                        queue.enqueue(tstamp, payload);
-                        if queue.ready {
-                            queue.make_contiguous();
-                            let n = cmp::max((queue.speed()).round() as u8, 1);
-                            if i == 0 {
-                                queue.median();
-                            }
-                            i = (i + 1) % n;
-                        }
-                    }
-                }
-            }
-        }
-    */
     async fn reading(&mut self) {
         if self.refe.is_some() && self.test.is_some() {
             self.reading_both().await;
