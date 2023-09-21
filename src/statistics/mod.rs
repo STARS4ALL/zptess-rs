@@ -234,9 +234,9 @@ pub async fn calibration_task(
 }
 
 pub struct Reading {
-    refe: Option<SamplesBuffer>,
-    test: Option<SamplesBuffer>,
-    channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
+    refe: Option<SamplesBuffer>, // may not be present if reading the test photometer only
+    test: Option<SamplesBuffer>, // may not be present if reading the ref photometer only
+    channel: Receiver<Sample>,   // where to receive the samples from photometer tasks
 }
 
 impl Reading {
@@ -334,18 +334,32 @@ impl Reading {
         }
     }
 
-    async fn reading(&mut self) {
-        if let Some(_) = self.refe {
-            if let Some(_) = self.test {
-                self.reading_both().await;
-            } else {
-                self.reading_single().await;
-            }
-        } else {
-            if let Some(_) = self.test {
-                self.reading_single().await;
+    /*
+        async fn reading_single(&mut self, queue: &mut SamplesBuffer) {
+            let mut i: u8 = 0;
+            while let Some(message) = self.channel.recv().await {
+                match message {
+                    (tstamp, payload) => {
+                        queue.enqueue(tstamp, payload);
+                        if queue.ready {
+                            queue.make_contiguous();
+                            let n = cmp::max((queue.speed()).round() as u8, 1);
+                            if i == 0 {
+                                queue.median();
+                            }
+                            i = (i + 1) % n;
+                        }
+                    }
+                }
             }
         }
+    */
+    async fn reading(&mut self) {
+        if self.refe.is_some() && self.test.is_some() {
+            self.reading_both().await;
+            return;
+        }
+        self.reading_single().await;
     }
 }
 
