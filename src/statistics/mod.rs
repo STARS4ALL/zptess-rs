@@ -83,16 +83,8 @@ impl SamplesBuffer {
 
     fn speed(&self) -> f32 {
         let (tstamps_slice, _) = self.time_q.as_slices();
-        let t0 = if let Some(t) = tstamps_slice.first() {
-            t
-        } else {
-            panic!("Empty timestamp queue");
-        };
-        let t1 = if let Some(t) = tstamps_slice.last() {
-            t
-        } else {
-            panic!("Empty timestamp queue");
-        };
+        let t0 = tstamps_slice.first().expect("t0 timestamp expected");
+        let t1 = tstamps_slice.last().expect("t1 timestamp expected");
         let dur = (*t1 - *t0).to_std().expect("Duration Conversion").as_secs() as f32;
         tstamps_slice.len() as f32 / dur
     }
@@ -282,15 +274,17 @@ impl Reading {
             }
             let test_queue = self.test.as_mut().unwrap();
             let refe_queue = self.refe.as_mut().unwrap();
-            test_queue.make_contiguous();
-            refe_queue.make_contiguous();
-            let speed = refe_queue.speed() / test_queue.speed();
-            let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
-            if i == 0 {
-                refe_queue.median();
-                test_queue.median();
+            if test_queue.ready && refe_queue.ready {
+                test_queue.make_contiguous();
+                refe_queue.make_contiguous();
+                let speed = refe_queue.speed() / test_queue.speed();
+                let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
+                if i == 0 {
+                    refe_queue.median();
+                    test_queue.median();
+                }
+                i = (i + 1) % n;
             }
-            i = (i + 1) % n;
         }
     }
 
