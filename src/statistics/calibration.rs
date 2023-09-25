@@ -2,12 +2,76 @@ use super::{
     Info, Payload, Pool, Sample, SamplesBuffer, TimeWindow, Timestamp, LABEL, REF, TEST,
     ZERO_POINT_FICT,
 };
+use crate::database::{models::Config, Db};
 use crate::statistics::auxiliary;
 use anyhow::Result;
 use chrono::SecondsFormat;
+use diesel::prelude::*;
 use tokio::sync::mpsc::Receiver;
+use tokio::task;
 use tokio::time::{Duration, Instant};
-use tracing::info;
+use tracing::{debug, error, info};
+
+#[derive(Debug)]
+pub struct CalibrationInfo {
+    pub author: String,
+    pub rounds: usize,
+    pub offset: f32,
+    pub zp_fict: f32,
+}
+
+impl Default for CalibrationInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CalibrationInfo {
+    pub fn new() -> Self {
+        Self {
+            author: "".to_string(),
+            rounds: 0,
+            offset: 0.0,
+            zp_fict: 0.0,
+        }
+    }
+}
+
+pub struct Dao {
+    pool: Pool,
+}
+
+impl Dao {
+    pub fn new(pool: Pool) -> Self {
+        Self { pool }
+    }
+
+    pub async fn read_config(&self) -> Result<CalibrationInfo> {
+        use crate::database::schema::config_t::dsl::*;
+        let sql = config_t
+            .filter(section.eq("calibration"))
+            .select(Config::as_select());
+
+        debug!("{:?}", diesel::debug_query::<Db, _>(&sql).to_string());
+        let mut conn1 = self.pool.get()?;
+        let results =
+            task::spawn_blocking(move || sql.load(&mut conn1).expect("Error loading config"))
+                .await?;
+
+        let mut info = CalibrationInfo::new();
+        for item in results.iter() {
+            match item.property.as_str() {
+                "author" => info.author = item.value.clone(),
+                "rounds" => info.rounds = item.value.clone().parse::<usize>()?,
+                "offset" => info.offset = item.value.clone().parse::<f32>()?,
+                "zp_fict" => info.zp_fict = item.value.clone().parse::<f32>()?,
+                &_ => error!("{}", item.property),
+            }
+        }
+        //info!("{info:#?}");
+        Ok(info)
+    }
+}
 
 pub struct Calibration {
     session: Timestamp,
@@ -152,7 +216,7 @@ impl Calibration {
 }
 
 pub async fn calibration_task(
-    _pool: Pool,
+    pool: Pool,
     session: Timestamp,
     chan: Receiver<Sample>,
     capacity: usize,
@@ -161,6 +225,8 @@ pub async fn calibration_task(
     ref_info: Info,
     test_info: Info,
 ) -> Result<f32> {
+    let dao = Dao::new(pool);
+    let cal_info = dao.read_config().await?;
     let mut calib = Calibration::new(
         capacity, session, chan, nrounds, millis, ref_info, test_info,
     );

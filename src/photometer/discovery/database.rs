@@ -1,5 +1,5 @@
-use super::super::super::database::{models::Config, Db, Pool};
 use super::Info;
+use crate::database::{models::Config, Db, Pool};
 use anyhow::Result;
 use diesel::prelude::*;
 use tokio::task;
@@ -15,7 +15,7 @@ impl<'a> Discoverer<'a> {
     }
 
     pub async fn discover(&self) -> Result<Info> {
-        use super::super::super::database::schema::config_t::dsl::*;
+        use crate::database::schema::config_t::dsl::*;
         let sql = config_t
             .filter(section.eq("ref-device"))
             .filter(property.ne("endpoint"))
