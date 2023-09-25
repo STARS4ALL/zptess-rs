@@ -22,11 +22,7 @@ pub type TimeWindow = (Timestamp, Timestamp); // t0, t1 time window
 pub const LABEL: [&str; 2] = ["REF.", "TEST"];
 pub const REF: usize = 0; // index into array
 pub const TEST: usize = 1; // index into array
-
-const ZERO_POINT_FICT: f32 = 20.5;
-fn magntude(freq: f32, freq_offset: f32) -> f32 {
-    ZERO_POINT_FICT - 2.5 * (freq - freq_offset).log10()
-}
+pub const ZERO_POINT_FICT: f32 = 20.5;
 
 pub struct SamplesBuffer {
     label: &'static str,
@@ -112,7 +108,7 @@ impl SamplesBuffer {
         let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
         let freq = statistical::median(&freqs);
         let stdev = statistical::standard_deviation(&freqs, Some(freq));
-        let mag = magntude(freq, self.info.freq_offset);
+        let mag = auxiliary::magntude(freq, self.info.freq_offset, ZERO_POINT_FICT);
         info!(
             "{} {:9} ({}-{})[{:02}s][{}] median f = {:0.3} Hz, \u{03C3} = {:0.3} Hz, m = {:0.2} @ {:0.2}",
             self.label,

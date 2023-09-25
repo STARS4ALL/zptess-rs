@@ -85,7 +85,7 @@ async fn do_calibrate(
     _test: bool,
     _author: Option<String>,
 ) -> Result<()> {
-    let _session = Utc::now();
+    let session = Utc::now();
     let model = model.map_model();
     let test_info = photometer::discover_test(&model).await?;
     info!("{test_info:#?}");
@@ -101,7 +101,8 @@ async fn do_calibrate(
     });
     let pool1 = pool.clone();
     let fstats = tokio::spawn(async move {
-        let result = statistics::calibration_task(pool1, rx, 9, 5, 5000, ref_info, test_info).await;
+        let result =
+            statistics::calibration_task(pool1, session, rx, 9, 5, 5000, ref_info, test_info).await;
         let zp = result.expect("Calibrated ZP");
         if _update {
             photometer::write_zero_point(&model, zp)
