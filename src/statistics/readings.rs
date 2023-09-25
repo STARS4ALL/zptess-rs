@@ -1,4 +1,5 @@
 use super::{Info, Payload, Pool, Sample, SamplesBuffer, LABEL, REF, TEST};
+use crate::statistics::dao;
 use anyhow::Result;
 use std::cmp;
 use tokio::sync::mpsc::Receiver;
@@ -15,9 +16,10 @@ impl Reading {
         channel: Receiver<Sample>,
         ref_info: Option<Info>,
         test_info: Option<Info>,
+        zp_fict: f32,
     ) -> Self {
-        let rbuf = ref_info.map(|info| SamplesBuffer::new(window, info, LABEL[REF]));
-        let tbuf = test_info.map(|info| SamplesBuffer::new(window, info, LABEL[TEST]));
+        let rbuf = ref_info.map(|info| SamplesBuffer::new(window, info, LABEL[REF], zp_fict));
+        let tbuf = test_info.map(|info| SamplesBuffer::new(window, info, LABEL[TEST], zp_fict));
         Self {
             channel,
             refe: rbuf,
@@ -87,13 +89,15 @@ impl Reading {
 }
 
 pub async fn reading_task(
-    _pool: Pool,
+    pool: Pool,
     chan: Receiver<Sample>,
     capacity: usize,
     ref_info: Option<Info>,
     test_info: Option<Info>,
 ) -> Result<()> {
-    let mut stats = Reading::new(capacity, chan, ref_info, test_info);
+    let dao = dao::Dao::new(pool);
+    let cal_info = dao.read_config().await?;
+    let mut stats = Reading::new(capacity, chan, ref_info, test_info, cal_info.zp_fict);
     stats.reading().await;
     Ok(())
 }

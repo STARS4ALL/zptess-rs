@@ -1,5 +1,6 @@
 pub mod auxiliary;
 pub mod calibration;
+pub mod dao;
 pub mod readings;
 
 use crate::Timestamp;
@@ -22,7 +23,31 @@ pub type TimeWindow = (Timestamp, Timestamp); // t0, t1 time window
 pub const LABEL: [&str; 2] = ["REF.", "TEST"];
 pub const REF: usize = 0; // index into array
 pub const TEST: usize = 1; // index into array
-pub const ZERO_POINT_FICT: f32 = 20.5;
+
+#[derive(Debug)]
+pub struct CalibrationInfo {
+    pub author: String,
+    pub rounds: usize,
+    pub offset: f32,
+    pub zp_fict: f32,
+}
+
+impl Default for CalibrationInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CalibrationInfo {
+    pub fn new() -> Self {
+        Self {
+            author: "".to_string(),
+            rounds: 0,
+            offset: 0.0,
+            zp_fict: 0.0,
+        }
+    }
+}
 
 pub struct SamplesBuffer {
     label: &'static str,
@@ -31,10 +56,11 @@ pub struct SamplesBuffer {
     time_q: TimestampQueue,
     ready: bool,
     info: Info,
+    zp_fict: f32,
 }
 
 impl SamplesBuffer {
-    fn new(initial_size: usize, info: Info, label: &'static str) -> Self {
+    fn new(initial_size: usize, info: Info, label: &'static str, zp_fict: f32) -> Self {
         Self {
             read_q: PayloadQueue::with_capacity(initial_size),
             time_q: TimestampQueue::with_capacity(initial_size),
@@ -42,6 +68,7 @@ impl SamplesBuffer {
             info,
             label,
             initial_size,
+            zp_fict,
         }
     }
 
@@ -108,7 +135,7 @@ impl SamplesBuffer {
         let dur = (t1 - t0).to_std().expect("Duration Conversion").as_secs();
         let freq = statistical::median(&freqs);
         let stdev = statistical::standard_deviation(&freqs, Some(freq));
-        let mag = auxiliary::magntude(freq, self.info.freq_offset, ZERO_POINT_FICT);
+        let mag = auxiliary::magntude(freq, self.info.freq_offset, self.zp_fict);
         info!(
             "{} {:9} ({}-{})[{:02}s][{}] median f = {:0.3} Hz, \u{03C3} = {:0.3} Hz, m = {:0.2} @ {:0.2}",
             self.label,
@@ -120,7 +147,7 @@ impl SamplesBuffer {
             freq,
             stdev,
             mag,
-            ZERO_POINT_FICT,
+            self.zp_fict,
         );
         (freq, stdev, mag, (t0, t1), dur as f32)
     }
