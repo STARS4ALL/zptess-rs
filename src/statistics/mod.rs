@@ -1,24 +1,29 @@
-use super::database::Pool;
-use super::photometer::discovery::Info;
-use super::photometer::payload::Payload;
-use super::{Sample, Timestamp};
-use anyhow::Result;
-use statistical;
-use std::cmp;
-use std::collections::VecDeque;
-use tokio::sync::mpsc::Receiver;
-use tokio::time::{Duration, Instant};
-use tracing::info;
-
 pub mod auxiliary;
-const LABEL: [&str; 2] = ["REF.", "TEST"];
-const REF: usize = 0; // index into array
-const TEST: usize = 1; // index into array
-const ZERO_POINT_FICT: f32 = 20.5;
+pub mod calibration;
+pub mod readings;
+
+use crate::Timestamp;
+use statistical;
+use std::collections::VecDeque;
+use tracing::info;
+// Re-exports for the submodules
+pub use crate::database::Pool;
+pub use crate::photometer::discovery::Info;
+pub use crate::photometer::payload::Payload;
+pub use crate::Sample;
+// Re-exports for the other modules
+pub use calibration::calibration_task;
+pub use readings::reading_task;
 
 type PayloadQueue = VecDeque<Payload>;
 type TimestampQueue = VecDeque<Timestamp>;
+pub type TimeWindow = (Timestamp, Timestamp); // t0, t1 time window
 
+pub const LABEL: [&str; 2] = ["REF.", "TEST"];
+pub const REF: usize = 0; // index into array
+pub const TEST: usize = 1; // index into array
+
+const ZERO_POINT_FICT: f32 = 20.5;
 fn magntude(freq: f32, freq_offset: f32) -> f32 {
     ZERO_POINT_FICT - 2.5 * (freq - freq_offset).log10()
 }
@@ -89,7 +94,7 @@ impl SamplesBuffer {
         tstamps_slice.len() as f32 / dur
     }
 
-    fn median(&self) -> (f32, f32) {
+    fn median(&self) -> (f32, f32, f32, TimeWindow, f32) {
         let from = self.read_q.len() - self.initial_size;
         let (readings_slice, _) = self.read_q.as_slices();
         let readings_slice = &readings_slice[from..];
@@ -121,200 +126,6 @@ impl SamplesBuffer {
             mag,
             ZERO_POINT_FICT,
         );
-        (freq, mag)
+        (freq, stdev, mag, (t0, t1), dur as f32)
     }
-}
-
-pub struct Calibration {
-    refe: SamplesBuffer,
-    test: SamplesBuffer,
-    ready: bool, // Global redy flag computed from the two samples buffers
-    round: usize,
-    millis: u64, // Number of milliseconds to wait between rounds, usually 5000
-    channel: Receiver<Sample>, // where to receive the sampels form photometer tasks
-    freqs: [Vec<f32>; 2], // central estimator of frequencies (currently median)
-    mags: [Vec<f32>; 2], // central estimator of frequencies (currently median)
-}
-
-impl Calibration {
-    fn new(
-        window: usize,
-        channel: Receiver<Sample>,
-        nrounds: usize,
-        millis: u64,
-        ref_info: Info,
-        test_info: Info,
-    ) -> Self {
-        Self {
-            refe: SamplesBuffer::new(window, ref_info, LABEL[REF]),
-            test: SamplesBuffer::new(window, test_info, LABEL[TEST]),
-            ready: false,
-            round: 1,
-            millis,  // Milliseconds to wait between rounds, usually 5000
-            channel, // Take ownership of the receiver end of the channel
-            freqs: [
-                Vec::<f32>::with_capacity(nrounds),
-                Vec::<f32>::with_capacity(nrounds),
-            ],
-            mags: [
-                Vec::<f32>::with_capacity(nrounds),
-                Vec::<f32>::with_capacity(nrounds),
-            ],
-        }
-    }
-
-    fn accumulate(&mut self, idx: usize, freq: f32, mag: f32) {
-        self.freqs[idx].push(freq);
-        self.mags[idx].push(mag);
-    }
-
-    async fn one_round(&mut self, round: usize) {
-        self.round = round;
-        let begin = Instant::now();
-        while let Some(message) = self.channel.recv().await {
-            match message {
-                (tstamp, Payload::Json(reading)) => {
-                    self.test
-                        .possibly_enqueue(tstamp, Payload::Json(reading), self.ready);
-                    self.ready = self.refe.ready && self.test.ready;
-                }
-                (tstamp, Payload::Cristogg(reading)) => {
-                    self.refe
-                        .possibly_enqueue(tstamp, Payload::Cristogg(reading), self.ready);
-                    self.ready = self.refe.ready && self.test.ready;
-                }
-            }
-            if Instant::now().duration_since(begin) > Duration::from_millis(self.millis)
-                && self.ready
-            {
-                self.refe.make_contiguous();
-                self.test.make_contiguous();
-                info!(
-                    "========================= Calculating statistics for round {} =========================",
-                    self.round
-                );
-                let (r_freq, r_mag) = self.refe.median();
-                let (t_freq, t_mag) = self.test.median();
-                let mag_diff = r_mag - t_mag;
-                let zp = self.refe.info.zp + mag_diff;
-                info!("ROUND {:02}: New ZP = {:0.2} = \u{0394}(ref-test) Mag ({:0.2}) + ZP Abs ({:0.2})",
-                    self.round, zp, mag_diff, self.refe.info.zp);
-                self.accumulate(REF, r_freq, r_mag);
-                self.accumulate(TEST, t_freq, t_mag);
-                break;
-            }
-        }
-    }
-}
-
-pub async fn calibration_task(
-    _pool: Pool,
-    chan: Receiver<Sample>,
-    capacity: usize,
-    nrounds: usize,
-    millis: u64,
-    ref_info: Info,
-    test_info: Info,
-) -> Result<f32> {
-    let mut calib = Calibration::new(capacity, chan, nrounds, millis, ref_info, test_info);
-    for i in 1..=nrounds {
-        calib.one_round(i).await;
-    }
-    info!("Calibration task finished");
-    Ok(20.50)
-}
-
-pub struct Reading {
-    refe: Option<SamplesBuffer>, // may not be present if reading the test photometer only
-    test: Option<SamplesBuffer>, // may not be present if reading the ref photometer only
-    channel: Receiver<Sample>,   // where to receive the samples from photometer tasks
-}
-
-impl Reading {
-    fn new(
-        window: usize,
-        channel: Receiver<Sample>,
-        ref_info: Option<Info>,
-        test_info: Option<Info>,
-    ) -> Self {
-        let rbuf = ref_info.map(|info| SamplesBuffer::new(window, info, LABEL[REF]));
-        let tbuf = test_info.map(|info| SamplesBuffer::new(window, info, LABEL[TEST]));
-        Self {
-            channel,
-            refe: rbuf,
-            test: tbuf,
-        }
-    }
-
-    async fn reading_both(&mut self) {
-        let mut i: u8 = 0;
-        while let Some(message) = self.channel.recv().await {
-            match message {
-                (tstamp, Payload::Json(reading)) => {
-                    if let Some(ref mut queue) = self.test {
-                        queue.enqueue(tstamp, Payload::Json(reading));
-                    }
-                }
-                (tstamp, Payload::Cristogg(reading)) => {
-                    if let Some(ref mut queue) = self.refe {
-                        queue.enqueue(tstamp, Payload::Cristogg(reading));
-                    }
-                }
-            }
-            let test_queue = self.test.as_mut().unwrap();
-            let refe_queue = self.refe.as_mut().unwrap();
-            if test_queue.ready && refe_queue.ready {
-                test_queue.make_contiguous();
-                refe_queue.make_contiguous();
-                let speed = refe_queue.speed() / test_queue.speed();
-                let n = (if speed < 1.0 { 1.0 / speed } else { speed }).round() as u8;
-                if i == 0 {
-                    refe_queue.median();
-                    test_queue.median();
-                }
-                i = (i + 1) % n;
-            }
-        }
-    }
-
-    async fn reading_single(&mut self) {
-        let mut i: u8 = 0;
-        let queue = if self.refe.is_some() {
-            self.refe.as_mut().unwrap()
-        } else {
-            self.test.as_mut().unwrap()
-        };
-        while let Some(message) = self.channel.recv().await {
-            let (tstamp, payload) = message;
-            queue.enqueue(tstamp, payload);
-            if queue.ready {
-                queue.make_contiguous();
-                let n = cmp::max((queue.speed()).round() as u8, 1);
-                if i == 0 {
-                    queue.median();
-                }
-                i = (i + 1) % n;
-            }
-        }
-    }
-
-    async fn reading(&mut self) {
-        if self.refe.is_some() && self.test.is_some() {
-            self.reading_both().await;
-            return;
-        }
-        self.reading_single().await;
-    }
-}
-
-pub async fn reading_task(
-    _pool: Pool,
-    chan: Receiver<Sample>,
-    capacity: usize,
-    ref_info: Option<Info>,
-    test_info: Option<Info>,
-) -> Result<()> {
-    let mut stats = Reading::new(capacity, chan, ref_info, test_info);
-    stats.reading().await;
-    Ok(())
 }

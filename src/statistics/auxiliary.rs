@@ -2,6 +2,11 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::Hash;
 
+pub fn round(x: f32, decimals: u32) -> f32 {
+    let y = 10i32.pow(decimals) as f32;
+    (x * y).round() / y
+}
+
 // statistcal::mode has a bug when there is no clear mode
 // This implementation fixes that
 pub fn mode<T>(v: &[T]) -> Option<T>
